@@ -1,0 +1,6 @@
+{
+  "name": "AI Test Generator Pro",
+  "description": "Hệ thống tạo đề kiểm tra, ma trận, bảng đặc tả và đáp án chuẩn Công văn 7991/BGDĐT dành cho giáo viên THCS và THPT.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

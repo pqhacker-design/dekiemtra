@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: taodekt
+    runtime: node
+
+    # Gói miễn phí (có thể đổi thành starter hoặc standard nếu cần)
+    plan: free
+
+    # Thư mục gốc của project
+    rootDir: .
+
+    # Build
+    buildCommand: npm install && npm run build
+
+    # Chạy server
+    startCommand: npm start
+
+    autoDeploy: true
+
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: GEMINI_API_KEY
+        sync: false
