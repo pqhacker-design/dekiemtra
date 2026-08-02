@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from './useAuth';
-import { ShieldAlert, Loader2, KeyRound, User, Eye, EyeOff, Lock, Info, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, Loader2, KeyRound, User, Eye, EyeOff, Lock } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const { user, isUnauthorized, login, logout, loading } = useAuth();
@@ -89,39 +89,6 @@ export const Login: React.FC = () => {
               Đăng Nhập Hệ Thống Quản Lý & Tạo Đề Thi
             </p>
           </div>
-        </div>
-
-        {/* Default Admin Credentials Notice */}
-        <div className="p-3.5 bg-indigo-950/40 border border-indigo-800/60 rounded-2xl text-xs space-y-2 text-indigo-200">
-          <div className="flex items-center space-x-2 text-indigo-400 font-bold">
-            <Info className="w-4 h-4 text-indigo-400 shrink-0" />
-            <span>Tài khoản Admin mặc định</span>
-          </div>
-          <div className="text-[11px] text-indigo-200/90 leading-relaxed bg-indigo-950/80 p-2.5 rounded-xl border border-indigo-800/40 font-mono space-y-1">
-            <div className="flex items-center justify-between">
-              <span>Tên đăng nhập:</span>
-              <strong className="text-emerald-400">admin</strong>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Mật khẩu:</span>
-              <strong className="text-emerald-400">admin123</strong>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setUsernameInput('admin');
-              setPasswordInput('admin123');
-              setErrorMsg('');
-            }}
-            className="w-full py-2 px-3 bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 font-bold text-[11px] rounded-xl border border-indigo-700/60 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Điền nhanh tài khoản Admin mặc định</span>
-          </button>
-          <p className="text-[10px] text-slate-400 italic">
-            * Admin có thể thay đổi mật khẩu và cấp thêm tài khoản cho giáo viên trong mục Quản trị.
-          </p>
         </div>
 
         {/* Error Notification */}
