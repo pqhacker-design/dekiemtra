@@ -54,6 +54,16 @@ export const UserManagement: React.FC = () => {
   const [deletingUser, setDeletingUser] = useState<AppUser | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // State for toggling password visibility in table rows
+  const [visiblePasswordIds, setVisiblePasswordIds] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (id: string) => {
+    setVisiblePasswordIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   // Subscribe to real-time users list
   useEffect(() => {
     setLoading(true);
@@ -321,9 +331,23 @@ export const UserManagement: React.FC = () => {
 
                       {/* Password Preview */}
                       <td className="px-5 py-4 font-mono text-slate-400 text-[11px]">
-                        <span className="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-slate-300">
-                          {u.password || '••••••'}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-slate-950 px-2.5 py-1 rounded border border-slate-800 text-slate-300 font-mono inline-block min-w-[70px]">
+                            {visiblePasswordIds[u.id || u.username] ? (u.password || '••••••') : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => togglePasswordVisibility(u.id || u.username)}
+                            className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title={visiblePasswordIds[u.id || u.username] ? "Ẩn mật khẩu" : "Xem mật khẩu"}
+                          >
+                            {visiblePasswordIds[u.id || u.username] ? (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                       {/* Role */}
