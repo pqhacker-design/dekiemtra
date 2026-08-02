@@ -71,6 +71,28 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   // Result State
   const [examResult, setExamResult] = useState<any>(null);
 
+  // System Classes for validation
+  const [systemClasses, setSystemClasses] = useState<any[]>([]);
+
+  useEffect(() => {
+    OnlineExamService.getClasses()
+      .then((res) => {
+        if (res.success && res.classes) {
+          setSystemClasses(res.classes);
+        }
+      })
+      .catch((err) => console.error('Lỗi khi tải danh sách lớp:', err));
+  }, []);
+
+  const normalizeClassStr = (str: string) => {
+    if (!str) return '';
+    return str
+      .trim()
+      .toLowerCase()
+      .replace(/^(lớp|lop|class)\s*/gi, '')
+      .replace(/[^a-z0-9]/gi, '');
+  };
+
   // Auto-check Exam Code metadata on typing or initial load
   useEffect(() => {
     if (examCode.trim().length >= 4) {
@@ -172,6 +194,19 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
       setLoginError('Vui lòng điền đầy đủ Mã đề, Họ tên và Lớp.');
       setCheckingCode(false);
       return;
+    }
+
+    // Client-side validation for Allowed Classes
+    if (examInfo && examInfo.allowedClasses && Array.isArray(examInfo.allowedClasses) && examInfo.allowedClasses.length > 0) {
+      const studentNorm = normalizeClassStr(curClass);
+      const isAllowed = examInfo.allowedClasses.some((c: string) => normalizeClassStr(c) === studentNorm);
+      if (!isAllowed) {
+        setLoginError(
+          `Cảnh báo: Tên lớp "${curClass}" không khớp hoặc không thuộc danh sách các lớp được tham gia bài thi này (${examInfo.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
+        );
+        setCheckingCode(false);
+        return;
+      }
     }
 
     try {
@@ -370,9 +405,17 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
           </div>
 
           {loginError && (
-            <div className="p-3 bg-rose-950/80 border border-rose-700 text-rose-200 rounded-2xl text-xs flex items-center space-x-2 animate-in fade-in">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{loginError}</span>
+            <div className="p-4 bg-rose-950/90 border-2 border-rose-600/80 text-rose-100 rounded-2xl text-xs space-y-1.5 shadow-xl animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-center space-x-2 font-black text-rose-300 text-sm">
+                <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400 animate-bounce" />
+                <span>CẢNH BÁO KIỂM TRA LẠI THÔNG TIN</span>
+              </div>
+              <p className="text-rose-100 font-medium leading-relaxed">
+                {loginError}
+              </p>
+              <p className="text-[11px] text-rose-300/90 font-semibold border-t border-rose-800/60 pt-1.5 mt-1">
+                💡 Gợi ý: Vui lòng kiểm tra chính xác Tên lớp (ví dụ: 10A1, 10A2) và Họ tên của bạn trước khi thử lại!
+              </p>
             </div>
           )}
 
@@ -516,16 +559,28 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">
-                      Lớp (*)
+                    <label className="font-bold text-slate-300 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                      <span>Lớp (*)</span>
+                      {examInfo?.allowedClasses && examInfo.allowedClasses.length > 0 && (
+                        <span className="text-[10px] text-amber-400 font-semibold">
+                          Lớp được chọn: {examInfo.allowedClasses.join(', ')}
+                        </span>
+                      )}
                     </label>
                     <input
                       type="text"
                       required={loginMode === 'MANUAL'}
                       placeholder="VD: 10A1"
                       value={studentClass}
-                      onChange={(e) => setStudentClass(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 font-semibold text-slate-100 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                      onChange={(e) => {
+                        setStudentClass(e.target.value);
+                        if (loginError) setLoginError('');
+                      }}
+                      className={`w-full bg-slate-900 border rounded-2xl px-4 py-3 font-semibold text-slate-100 focus:ring-2 focus:outline-hidden transition-all ${
+                        loginError && (loginError.includes('lớp') || loginError.includes('Lớp'))
+                          ? 'border-rose-500 focus:ring-rose-500 bg-rose-950/20'
+                          : 'border-slate-700 focus:ring-teal-500'
+                      }`}
                     />
                   </div>
 
