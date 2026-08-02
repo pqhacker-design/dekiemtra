@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Download, FileCode, Menu, Sparkles, UserCheck, FileText, CheckCircle2, Share2, LogOut, Shield, KeyRound, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { AppSettings, ExamPackage } from '../types';
 import { useAuth } from '../auth/useAuth';
@@ -299,8 +300,8 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Change Password Modal */}
-      {showChangePasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in">
+      {showChangePasswordModal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center space-x-2">
@@ -311,7 +312,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <button
                 onClick={() => setShowChangePasswordModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
               >
                 ✕
               </button>
@@ -374,7 +375,8 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );
