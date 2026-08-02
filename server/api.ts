@@ -363,16 +363,18 @@ export function registerExamRoutes(app: express.Express) {
       }
 
       if (code) {
+        const normalizeClass = (str: string) =>
+          str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
+
         const exam = ExamRepository.getExamByCode(code);
         if (exam && Array.isArray(exam.allowedClasses) && exam.allowedClasses.length > 0) {
+          const studentNorm = normalizeClass(student.className);
           const isAllowed = exam.allowedClasses.some(
-            (c) =>
-              c.trim().toLowerCase() === student.className.trim().toLowerCase() ||
-              c === student.classId
+            (c) => normalizeClass(c) === studentNorm || c === student.classId
           );
           if (!isAllowed) {
             return res.status(403).json({
-              error: `Số báo danh ${sbd} (${student.name} - Lớp ${student.className}) không thuộc danh sách các lớp được làm bài thi này (${exam.allowedClasses.join(', ')}).`,
+              error: `Cảnh báo: Học sinh ${student.name} (Lớp ${student.className}) không thuộc danh sách lớp được phép làm bài thi này (${exam.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`,
               student,
             });
           }
@@ -565,7 +567,23 @@ export function registerExamRoutes(app: express.Express) {
       }
 
       if (exam.status === 'locked') {
-        return res.status(403).json({ error: 'Đề đã kết thúc.' });
+        return res.status(403).json({ error: 'Đề thi này hiện đang bị khóa hoặc đã kết thúc.' });
+      }
+
+      const normalizeClassStr = (str: string) =>
+        str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
+
+      // Validate allowed classes for the exam
+      if (exam.allowedClasses && Array.isArray(exam.allowedClasses) && exam.allowedClasses.length > 0) {
+        const studentNormClass = normalizeClassStr(studentClass);
+        const isAllowed = exam.allowedClasses.some(
+          (c) => normalizeClassStr(c) === studentNormClass
+        );
+        if (!isAllowed) {
+          return res.status(400).json({
+            error: `Cảnh báo: Tên lớp "${studentClass}" không thuộc danh sách các lớp được phép làm bài thi này (${exam.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`,
+          });
+        }
       }
 
       // Check for existing session (F5 / Re-entry / Submitted check)
