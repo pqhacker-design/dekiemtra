@@ -10,7 +10,7 @@ app.use(express.json({ limit: '20mb' }));
 // Register Online Exam System REST API Routes
 registerExamRoutes(app);
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 
 // API Health Check
 app.get('/api/health', (req, res) => {

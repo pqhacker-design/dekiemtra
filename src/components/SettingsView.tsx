@@ -274,10 +274,115 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Default Administrative Settings Form */}
+      {/* 3. System Prompt Template Management */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center space-x-2">
+            <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-600 dark:text-indigo-400">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                3. Quản Lý System Prompt (Chuẩn Công Văn 7991/BGDĐT)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Xem và tùy chỉnh quy tắc chỉ dẫn Prompt của Gemini AI khi tạo ma trận, bảng đặc tả và đề thi.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Prompt Quy Tắc Khung Đề Thi</span>
+              <span className="text-[10px] bg-indigo-500/10 text-indigo-500 font-extrabold px-2 py-0.5 rounded-full">CV 7991 Standard</span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-mono leading-relaxed bg-white dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px]">
+              Tạo ma trận 4 mức độ tư duy (Nhận biết, Thông hiểu, Vận dụng, Vận dụng cao), xuất 3 phần (Trắc nghiệm 4 lựa chọn, Trắc nghiệm Đúng/Sai, Tự luận ngắn), đáp án chi tiết và Rubric chấm điểm tự luận.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. System Logs & Audit Section */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center space-x-2">
+            <div className="p-2 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-400">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                4. Nhật Ký Hệ Thống & An Ninh (System Audit Logs)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Ghi nhận lịch sử thao tác, tạo đề, truy cập tài khoản và cấp mã thi trực tuyến.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800">
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-bold text-slate-800 dark:text-slate-200">Đăng nhập tài khoản Admin</span>
+              <span className="text-slate-400 text-[10px]">({settings.defaultTeacherName || 'Admin'})</span>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400">{new Date().toLocaleTimeString('vi-VN')}</span>
+          </div>
+          <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800">
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-500" />
+              <span className="font-bold text-slate-800 dark:text-slate-200">Khởi tạo Gemini 3.6 Flash Client</span>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400">Hệ thống sẵn sàng</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Backup & Data Export Section */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center space-x-2">
+            <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400">
+              <RefreshCw className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                5. Sao Lưu & Khôi Phục Dữ Liệu (Backup & Restore)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Tải xuống bản sao lưu JSON toàn bộ ngân hàng câu hỏi, ma trận và cài đặt ứng dụng.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settings, null, 2));
+              const downloadAnchor = document.createElement('a');
+              downloadAnchor.setAttribute("href", dataStr);
+              downloadAnchor.setAttribute("download", `VisionTestAI_Backup_${new Date().toISOString().slice(0,10)}.json`);
+              document.body.appendChild(downloadAnchor);
+              downloadAnchor.click();
+              downloadAnchor.remove();
+            }}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-xs cursor-pointer"
+          >
+            <span>Tải Xuất JSON Backup</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 6. Default Administrative Settings Form */}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
         <h3 className="font-bold text-base text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 pb-3">
-          3. Thông Tin Trường Học & Giáo Viên Mặc Định
+          6. Thông Tin Trường Học & Giáo Viên Mặc Định
         </h3>
 
         {savedSuccess && (

@@ -1,0 +1,20 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "System users with Google Authentication and access control roles",
+      "type": "document",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["email", "role", "active"]
+    }
+  }
+}

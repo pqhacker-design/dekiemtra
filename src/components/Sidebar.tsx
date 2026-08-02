@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Award,
   BookOpen,
   CheckSquare,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
-  FileText,
-  Globe,
   Grid,
-  HelpCircle,
   Home,
   Laptop,
   Layers,
@@ -19,13 +15,13 @@ import {
   QrCode,
   School,
   Settings,
-  Share2,
-  Sparkles,
   Sun,
   UserCheck,
+  Users,
   X,
   Zap,
 } from 'lucide-react';
+import { useAuth } from '../auth/useAuth';
 
 export type TabType =
   | 'dashboard'
@@ -39,6 +35,7 @@ export type TabType =
   | 'student_exam'
   | 'multicode'
   | 'answers'
+  | 'user_management'
   | 'settings';
 
 interface SidebarProps {
@@ -62,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed: externalIsCollapsed,
   setIsCollapsed: externalSetIsCollapsed,
 }) => {
+  const { isAdmin } = useAuth();
   const [internalIsCollapsed, setInternalIsCollapsed] = useState(false);
   const isCollapsed = externalIsCollapsed !== undefined ? externalIsCollapsed : internalIsCollapsed;
   const toggleCollapse = () => {
@@ -72,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const menuItems: { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string; glowColor?: string }[] = [
+  const allMenuItems: { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string; glowColor?: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard AI', icon: Home, glowColor: 'emerald' },
     { id: 'generator', label: 'Tạo đề kiểm tra', icon: PlusCircle, badge: 'CV 7991', glowColor: 'cyan' },
     { id: 'classes', label: 'Quản lý Lớp & HS', icon: School, badge: 'LỚP & HS', glowColor: 'indigo' },
@@ -84,8 +82,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'bank', label: 'Ngân hàng câu hỏi', icon: BookOpen },
     { id: 'multicode', label: 'Đề đã tạo - Các mã đề', icon: FileSpreadsheet },
     { id: 'answers', label: 'Đáp án & Rubric', icon: CheckSquare },
-    { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings },
+    { id: 'user_management', label: 'Quản lý tài khoản', icon: Users, badge: 'ADMIN', adminOnly: true },
+    { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings, adminOnly: true },
   ];
+
+  // Filter out admin-only items if user is not admin (Requirement 6 & 15)
+  const menuItems = allMenuItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <>
@@ -149,11 +151,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Navigation Menu */}
-          <nav className="p-3 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar">
+          {/* Navigation Items */}
+          <nav className="p-3 pr-1.5 space-y-1.5 overflow-y-auto flex-1 min-h-0 sidebar-scrollbar">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
+
               return (
                 <button
                   key={item.id}
@@ -183,7 +186,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </div>
                   {!isCollapsed && item.badge && (
-                    <span className="px-2 py-0.5 text-[9px] font-black tracking-wider uppercase rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-xs shrink-0">
+                    <span className={`px-2 py-0.5 text-[9px] font-black tracking-wider uppercase rounded-full text-white shadow-xs shrink-0 ${
+                      item.adminOnly
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600'
+                        : 'bg-gradient-to-r from-emerald-500 to-cyan-500'
+                    }`}>
                       {item.badge}
                     </span>
                   )}

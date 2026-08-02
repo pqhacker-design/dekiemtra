@@ -17,6 +17,9 @@ import { StudentExamView } from './components/StudentExamView';
 import { ClassManagementView } from './components/ClassManagementView';
 import { PublishOnlineModal } from './components/PublishOnlineModal';
 import { ShareExamModal } from './components/ShareExamModal';
+import { ProtectedRoute } from './auth/ProtectedRoute';
+import { useAuth } from './auth/useAuth';
+import { UserManagement } from './pages/UserManagement';
 
 import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, QuestionBankItem, SpecRow } from './types';
 import { StorageEngine } from './services/storageEngine';
@@ -27,10 +30,18 @@ import { ExportPdf } from './services/exportPdf';
 import { OnlineExamService } from './services/onlineExamService';
 
 export default function App() {
+  const { role, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Enforce Route Guard: If User role tries to access admin tabs, redirect to dashboard (Requirement 6)
+  useEffect(() => {
+    if (role === 'user' && (activeTab === 'user_management' || activeTab === 'settings')) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, role]);
 
   // Core Data States
   const [settings, setSettings] = useState<AppSettings>(StorageEngine.getSettings());
@@ -510,7 +521,7 @@ export default function App() {
           />
         </div>
       ) : (
-        <>
+        <ProtectedRoute>
           {/* Sidebar Navigation */}
           <Sidebar
             activeTab={activeTab}
@@ -547,6 +558,8 @@ export default function App() {
                   ? 'Sinh Nhiều Mã Đề'
                   : activeTab === 'answers'
                   ? 'Đáp Án & Rubric Chấm Bài'
+                  : activeTab === 'user_management'
+                  ? 'Quản Lý Tài Khoản Người Dùng'
                   : 'Cài Đặt Hệ Thống'
               }
               subtitle="Đánh giá năng lực học sinh THCS & THPT toàn quốc"
@@ -649,17 +662,26 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'user_management' && (
+                <ProtectedRoute requiredRole="admin">
+                  <UserManagement />
+                </ProtectedRoute>
+              )}
+
               {activeTab === 'settings' && (
-                <SettingsView
-                  settings={settings}
-                  onSaveSettings={handleSaveSettings}
-                  onClearAllData={handleClearAllData}
-                />
+                <ProtectedRoute requiredRole="admin">
+                  <SettingsView
+                    settings={settings}
+                    onSaveSettings={handleSaveSettings}
+                    onClearAllData={handleClearAllData}
+                  />
+                </ProtectedRoute>
               )}
             </main>
           </div>
-        </>
+        </ProtectedRoute>
       )}
+
 
       {/* Publish Online Exam Modal */}
       <PublishOnlineModal
