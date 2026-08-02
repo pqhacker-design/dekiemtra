@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Eye, EyeOff, Key, RefreshCw, Save, ShieldCheck, Sparkles, Trash2, ExternalLink, AlertTriangle } from 'lucide-react';
 import { AppSettings } from '../types';
+import { callGeminiApi } from '../services/geminiClient';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -79,21 +80,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setApiStatus({ type: null, message: '' });
 
     try {
-      const response = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: 'Xin chào, vui lòng phản hồi ngắn "OK" để kiểm tra kết nối API.',
-          customApiKey: customApiKey.trim() || undefined,
-          model: selectedModel,
-        }),
+      await callGeminiApi({
+        prompt: 'Xin chào, vui lòng phản hồi ngắn "OK" để kiểm tra kết nối API.',
+        customApiKey: customApiKey.trim() || undefined,
+        model: selectedModel,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Kiểm tra API thất bại.');
-      }
 
       setApiStatus({
         type: 'success',
