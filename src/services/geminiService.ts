@@ -3,10 +3,11 @@ import { PromptEngine } from './promptEngine';
 import { ShuffleEngine } from './shuffleEngine';
 import { ValidationEngine } from './validationEngine';
 import { StorageEngine } from './storageEngine';
+import { callGeminiApi } from './geminiClient';
 
 export class GeminiService {
   /**
-   * Gọi backend API để sinh Đề kiểm tra, Ma trận, Bảng đặc tả và Đáp án
+   * Gọi backend API hoặc Client SDK để sinh Đề kiểm tra, Ma trận, Bảng đặc tả và Đáp án
    */
   static async generateExamPackage(
     metadata: ExamMetadata,
@@ -28,31 +29,14 @@ export class GeminiService {
 
     if (onProgress) onProgress(`Đang gửi yêu cầu tới Gemini AI (${selectedModel})...`);
 
-    const response = await fetch('/api/gemini/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        prompt,
-        systemInstruction,
-        responseMimeType: 'application/json',
-        customApiKey,
-        model: selectedModel,
-        images: metadata.referenceImages || [],
-      }),
+    const rawText = await callGeminiApi({
+      prompt,
+      systemInstruction,
+      responseMimeType: 'application/json',
+      customApiKey,
+      model: selectedModel,
+      images: metadata.referenceImages || [],
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error ||
-          `Lỗi máy chủ (${response.status}): Không thể nhận kết quả từ Gemini API.`
-      );
-    }
-
-    const data = await response.json();
-    const rawText = data.text;
 
     if (!rawText) {
       throw new Error('Gemini API không phản hồi dữ liệu.');
