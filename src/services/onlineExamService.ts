@@ -405,6 +405,21 @@ export class OnlineExamService {
         throw new Error('Đề thi này hiện đang bị khóa.');
       }
 
+      const normalizeClassStr = (str: string) =>
+        str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
+
+      if (exam.allowedClasses && Array.isArray(exam.allowedClasses) && exam.allowedClasses.length > 0) {
+        const studentNormClass = normalizeClassStr(data.studentClass);
+        const isAllowed = exam.allowedClasses.some(
+          (c) => normalizeClassStr(c) === studentNormClass
+        );
+        if (!isAllowed) {
+          throw new Error(
+            `Cảnh báo: Tên lớp "${data.studentClass}" không thuộc danh sách các lớp được phép làm bài thi này (${exam.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
+          );
+        }
+      }
+
       const sessions = this.getLocalSessions();
       const session = sessions.find(
         (s) =>
