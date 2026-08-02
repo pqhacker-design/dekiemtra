@@ -447,7 +447,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Danger Zone */}
       <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-2xl border border-red-200 dark:border-red-900/50 space-y-3">
         <h3 className="font-extrabold text-base text-red-800 dark:text-red-300">
-          4. Quản Lý Bộ Nhớ LocalStorage
+          7. Quản Lý Bộ Nhớ LocalStorage
         </h3>
         <p className="text-xs text-red-600 dark:text-red-400">
           Xóa toàn bộ lịch sử đề kiểm tra, cài đặt và ngân hàng câu hỏi khỏi bộ nhớ trình duyệt (LocalStorage).
