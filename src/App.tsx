@@ -36,9 +36,9 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Enforce Route Guard: If User role tries to access admin tabs, redirect to dashboard (Requirement 6)
+  // Enforce Route Guard: If User role tries to access admin-only tabs (user_management), redirect to dashboard
   useEffect(() => {
-    if (role === 'user' && (activeTab === 'user_management' || activeTab === 'settings')) {
+    if (role === 'user' && activeTab === 'user_management') {
       setActiveTab('dashboard');
     }
   }, [activeTab, role]);
