@@ -3,9 +3,23 @@ import { useAuth } from './useAuth';
 import { ShieldAlert, LogOut, Loader2, Sparkles, CheckCircle, Lock } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { firebaseUser, isUnauthorized, login, logout, loading } = useAuth();
+  const { firebaseUser, isUnauthorized, login, loginWithRedirect, logout, loading } = useAuth();
   const [loggingIn, setLoggingIn] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const parseAuthError = (err: any) => {
+    const code = err?.code || '';
+    if (code === 'auth/unauthorized-domain') {
+      return `Lỗi tên miền (auth/unauthorized-domain): Tên miền website chưa được cho phép trong Firebase Console. Hãy thêm domain của bạn vào Firebase Console -> Authentication -> Settings -> Authorized domains.`;
+    }
+    if (code === 'auth/popup-closed-by-user') {
+      return `Cửa sổ đăng nhập đã bị đóng. Nếu bạn không tự đóng, có thể do tên miền chưa được cấp phép hoặc trình duyệt (Safari/Chrome) đã tự động chặn Pop-up. Vui lòng thử nút "Đăng nhập bằng chuyển hướng (Redirect)" bên dưới.`;
+    }
+    if (code === 'auth/popup-blocked') {
+      return `Trình duyệt của bạn đã chặn cửa sổ bật lên (Pop-up). Vui lòng thử lại bằng nút "Đăng nhập bằng chuyển hướng (Redirect)".`;
+    }
+    return err.message || 'Đăng nhập bằng Google thất bại. Vui lòng thử lại.';
+  };
 
   const handleGoogleLogin = async () => {
     setErrorMsg('');
@@ -13,10 +27,19 @@ export const Login: React.FC = () => {
     try {
       await login();
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg(err.message || 'Đăng nhập bằng Google thất bại. Vui lòng thử lại.');
-      }
+      setErrorMsg(parseAuthError(err));
     } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const handleGoogleRedirectLogin = async () => {
+    setErrorMsg('');
+    setLoggingIn(true);
+    try {
+      await loginWithRedirect();
+    } catch (err: any) {
+      setErrorMsg(parseAuthError(err));
       setLoggingIn(false);
     }
   };
@@ -104,8 +127,8 @@ export const Login: React.FC = () => {
           </div>
         )}
 
-        {/* Google Login Button */}
-        <div className="space-y-4">
+        {/* Google Login Buttons */}
+        <div className="space-y-3">
           <button
             onClick={handleGoogleLogin}
             disabled={loggingIn || loading}
@@ -137,9 +160,17 @@ export const Login: React.FC = () => {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>Đăng nhập bằng Google</span>
+                <span>Đăng nhập bằng Google (Pop-up)</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={handleGoogleRedirectLogin}
+            disabled={loggingIn || loading}
+            className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs rounded-xl border border-slate-700 transition-all duration-200 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+          >
+            <span>Dùng Chuyển Hướng Trang (Dành cho Safari / Mobile / Trình duyệt chặn Pop-up)</span>
           </button>
 
           <p className="text-[11px] text-center text-slate-500">
