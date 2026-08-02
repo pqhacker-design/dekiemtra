@@ -18,10 +18,10 @@ import {
   XCircle, 
   Loader2, 
   AlertTriangle,
-  RefreshCw,
-  Mail,
   Calendar,
-  Sparkles
+  Eye,
+  EyeOff,
+  User
 } from 'lucide-react';
 
 export const UserManagement: React.FC = () => {
@@ -40,11 +40,13 @@ export const UserManagement: React.FC = () => {
 
   // Form State
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
+    password: '',
     displayName: '',
     role: 'user' as 'admin' | 'user',
     active: true,
   });
+  const [showFormPassword, setShowFormPassword] = useState(false);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -64,9 +66,8 @@ export const UserManagement: React.FC = () => {
 
   // Filter & Search logic
   const filteredUsers = users.filter((u) => {
-    const matchesSearch = 
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.displayName && u.displayName.toLowerCase().includes(searchTerm.toLowerCase()));
+    const searchTarget = `${u.username || ''} ${u.displayName || ''} ${u.email || ''}`.toLowerCase();
+    const matchesSearch = searchTarget.includes(searchTerm.toLowerCase());
     
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
     const matchesStatus = 
@@ -81,11 +82,13 @@ export const UserManagement: React.FC = () => {
   const handleOpenAdd = () => {
     setEditingUser(null);
     setFormData({
-      email: '',
+      username: '',
+      password: '',
       displayName: '',
       role: 'user',
       active: true,
     });
+    setShowFormPassword(false);
     setFormError('');
     setShowAddModal(true);
   };
@@ -94,11 +97,13 @@ export const UserManagement: React.FC = () => {
   const handleOpenEdit = (targetUser: AppUser) => {
     setEditingUser(targetUser);
     setFormData({
-      email: targetUser.email,
+      username: targetUser.username || targetUser.email || '',
+      password: '', // Keep blank if unchanged
       displayName: targetUser.displayName || '',
       role: targetUser.role,
       active: targetUser.active,
     });
+    setShowFormPassword(false);
     setFormError('');
     setShowAddModal(true);
   };
@@ -108,28 +113,31 @@ export const UserManagement: React.FC = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!formData.email.trim()) {
-      setFormError('Vui lòng nhập địa chỉ Gmail');
-      return;
-    }
-
-    if (!formData.email.includes('@')) {
-      setFormError('Địa chỉ email không hợp lệ');
-      return;
+    if (!editingUser) {
+      if (!formData.username.trim()) {
+        setFormError('Vui lòng nhập tên đăng nhập');
+        return;
+      }
+      if (!formData.password || formData.password.trim().length < 4) {
+        setFormError('Mật khẩu phải có ít nhất 4 ký tự');
+        return;
+      }
     }
 
     setSaving(true);
     try {
       if (editingUser) {
-        const targetId = editingUser.id || editingUser.uid || editingUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const targetId = editingUser.id || editingUser.username || 'admin';
         await userService.updateUser(targetId, {
           displayName: formData.displayName.trim() || undefined,
           role: formData.role,
           active: formData.active,
+          password: formData.password.trim() ? formData.password.trim() : undefined,
         });
       } else {
         await userService.addUser({
-          email: formData.email.trim(),
+          username: formData.username.trim(),
+          password: formData.password.trim(),
           displayName: formData.displayName.trim(),
           role: formData.role,
           active: formData.active,
@@ -145,7 +153,7 @@ export const UserManagement: React.FC = () => {
 
   // Toggle Quick Lock / Unlock
   const handleToggleLock = async (targetUser: AppUser) => {
-    const targetId = targetUser.id || targetUser.uid || targetUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+    const targetId = targetUser.id || targetUser.username || 'admin';
     try {
       await userService.updateUser(targetId, {
         active: !targetUser.active,
@@ -157,10 +165,10 @@ export const UserManagement: React.FC = () => {
 
   // Toggle Quick Role Switch (Admin <-> User)
   const handleToggleRole = async (targetUser: AppUser) => {
-    if (currentUser?.email === targetUser.email) {
+    if (currentUser?.username === targetUser.username) {
       if (!confirm('Bạn có chắc muốn tự đổi vai trò của tài khoản hiện tại không?')) return;
     }
-    const targetId = targetUser.id || targetUser.uid || targetUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+    const targetId = targetUser.id || targetUser.username || 'admin';
     const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
     try {
       await userService.updateUser(targetId, {
@@ -176,7 +184,7 @@ export const UserManagement: React.FC = () => {
     if (!deletingUser) return;
     setDeleting(true);
     try {
-      const targetId = deletingUser.id || deletingUser.uid || deletingUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+      const targetId = deletingUser.id || deletingUser.username || 'admin';
       await userService.deleteUser(targetId);
       setDeletingUser(null);
     } catch (err: any) {
@@ -203,7 +211,7 @@ export const UserManagement: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Cấp quyền truy cập Gmail, phân quyền Admin/User và quản lý trạng thái tài khoản sử dụng ứng dụng.
+            Cấp tên đăng nhập và mật khẩu cho giáo viên, phân quyền Admin/User và bật/tắt quyền truy cập ứng dụng.
           </p>
         </div>
 
@@ -212,7 +220,7 @@ export const UserManagement: React.FC = () => {
           className="px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center space-x-2 transition-all duration-200 shadow-lg shadow-emerald-500/20 cursor-pointer shrink-0"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Thêm Tài Khoản</span>
+          <span>Thêm Tài Khoản Mới</span>
         </button>
       </div>
 
@@ -225,7 +233,7 @@ export const UserManagement: React.FC = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo Gmail hoặc Họ tên..."
+            placeholder="Tìm theo Tên đăng nhập hoặc Họ tên..."
             className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 dark:bg-slate-900 border border-slate-700/80 rounded-2xl text-xs text-slate-200 focus:outline-hidden focus:border-indigo-500"
           />
         </div>
@@ -256,7 +264,7 @@ export const UserManagement: React.FC = () => {
           >
             <option value="ALL" className="bg-slate-900 text-slate-200">Tất cả trạng thái</option>
             <option value="active" className="bg-slate-900 text-slate-200">Đang hoạt động (Active)</option>
-            <option value="inactive" className="bg-slate-900 text-slate-200">Đã khóa / Chờ kích hoạt</option>
+            <option value="inactive" className="bg-slate-900 text-slate-200">Đã khóa / Tạm ngưng</option>
           </select>
         </div>
       </div>
@@ -272,60 +280,50 @@ export const UserManagement: React.FC = () => {
           <div className="py-16 text-center space-y-3">
             <UserX className="w-10 h-10 text-slate-600 mx-auto" />
             <p className="text-sm font-bold text-slate-400">Không tìm thấy tài khoản phù hợp</p>
-            <p className="text-xs text-slate-500">Thử thay đổi từ khóa tìm kiếm hoặc thêm tài khoản mới.</p>
+            <p className="text-xs text-slate-500">Thử thay đổi từ khóa tìm kiếm hoặc bấm "Thêm Tài Khoản Mới".</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/80 text-slate-400 uppercase font-black text-[10px] tracking-wider border-b border-slate-800">
                 <tr>
-                  <th className="px-5 py-4">Tài khoản Google</th>
-                  <th className="px-5 py-4">Gmail</th>
+                  <th className="px-5 py-4">Tên đăng nhập</th>
+                  <th className="px-5 py-4">Họ & Tên</th>
+                  <th className="px-5 py-4">Mật khẩu</th>
                   <th className="px-5 py-4">Vai trò</th>
                   <th className="px-5 py-4">Trạng thái</th>
-                  <th className="px-5 py-4">Ngày cấp quyền</th>
+                  <th className="px-5 py-4">Ngày tạo</th>
                   <th className="px-5 py-4 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
                 {filteredUsers.map((u) => {
-                  const isSelf = currentUser?.email === u.email;
+                  const isSelf = currentUser?.username === u.username;
                   return (
-                    <tr key={u.id || u.uid || u.email} className="hover:bg-slate-800/40 transition-colors">
-                      {/* User Info & Avatar */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center space-x-3">
-                          {u.photoURL ? (
-                            <img
-                              src={u.photoURL}
-                              alt={u.displayName || u.email}
-                              className="w-9 h-9 rounded-xl object-cover border border-slate-700 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-xl bg-indigo-950 text-indigo-300 font-bold border border-indigo-800 flex items-center justify-center shrink-0">
-                              {(u.displayName || u.email)[0].toUpperCase()}
-                            </div>
+                    <tr key={u.id || u.username} className="hover:bg-slate-800/40 transition-colors">
+                      {/* Username */}
+                      <td className="px-5 py-4 font-mono font-bold text-emerald-400">
+                        <div className="flex items-center space-x-2">
+                          <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span>{u.username}</span>
+                          {isSelf && (
+                            <span className="text-[10px] bg-emerald-950 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded border border-emerald-800">
+                              Bạn
+                            </span>
                           )}
-                          <div>
-                            <div className="font-bold text-slate-100 flex items-center space-x-1.5">
-                              <span>{u.displayName || 'Chưa đăng nhập Google'}</span>
-                              {isSelf && (
-                                <span className="text-[10px] bg-emerald-950 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded border border-emerald-800">
-                                  Bạn
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-slate-500 font-mono">{u.uid ? `UID: ${u.uid.slice(0, 8)}...` : 'Chờ đăng nhập'}</span>
-                          </div>
                         </div>
                       </td>
 
-                      {/* Gmail */}
+                      {/* Display Name */}
                       <td className="px-5 py-4">
-                        <div className="flex items-center space-x-1.5 text-slate-200 font-mono">
-                          <Mail className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                          <span>{u.email}</span>
-                        </div>
+                        <span className="font-bold text-slate-100">{u.displayName || '—'}</span>
+                      </td>
+
+                      {/* Password Preview */}
+                      <td className="px-5 py-4 font-mono text-slate-400 text-[11px]">
+                        <span className="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-slate-300">
+                          {u.password || '••••••'}
+                        </span>
                       </td>
 
                       {/* Role */}
@@ -363,7 +361,7 @@ export const UserManagement: React.FC = () => {
                           ) : (
                             <>
                               <XCircle className="w-3 h-3 text-rose-400" />
-                              <span>Bị khóa / Chưa cấp</span>
+                              <span>Đã khóa</span>
                             </>
                           )}
                         </button>
@@ -385,7 +383,7 @@ export const UserManagement: React.FC = () => {
                           <button
                             onClick={() => handleOpenEdit(u)}
                             className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                            title="Sửa thông tin"
+                            title="Sửa thông tin / Đổi mật khẩu"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
@@ -422,7 +420,7 @@ export const UserManagement: React.FC = () => {
                   {editingUser ? <Edit3 className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
                 </div>
                 <h3 className="font-extrabold text-white text-base">
-                  {editingUser ? 'Chỉnh Sửa Tài Khoản' : 'Thêm Tài Khoản Mới'}
+                  {editingUser ? 'Chỉnh Sửa Tài Khoản' : 'Tạo Tài Khoản Người Dùng Mới'}
                 </h3>
               </div>
               <button
@@ -441,28 +439,52 @@ export const UserManagement: React.FC = () => {
                 </div>
               )}
 
-              {/* Gmail Email */}
+              {/* Username Input */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Địa chỉ Gmail (*)</label>
+                <label className="text-xs font-bold text-slate-300">Tên đăng nhập (*)</label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   disabled={!!editingUser}
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="teacher@gmail.com"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-indigo-500 disabled:opacity-60"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="VD: giaovien1"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-indigo-500 disabled:opacity-60 font-mono"
                 />
+              </div>
+
+              {/* Password Input */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-300">
+                  {editingUser ? 'Mật khẩu mới (Để trống nếu không đổi)' : 'Mật khẩu (*)'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showFormPassword ? 'text' : 'password'}
+                    required={!editingUser}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder={editingUser ? 'Nhập mật khẩu mới nếu muốn đổi' : 'Tối thiểu 4 ký tự'}
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFormPassword(!showFormPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                  >
+                    {showFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {/* Display Name */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Họ và Tên (Tùy chọn)</label>
+                <label className="text-xs font-bold text-slate-300">Họ và Tên Giáo viên</label>
                 <input
                   type="text"
                   value={formData.displayName}
                   onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  placeholder="Nguyễn Văn A"
+                  placeholder="VD: Nguyễn Văn A"
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-indigo-500"
                 />
               </div>
@@ -475,46 +497,39 @@ export const UserManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-indigo-500 cursor-pointer"
                 >
-                  <option value="user">Người dùng (User) - Quyền tạo đề & làm bài</option>
-                  <option value="admin">Quản trị viên (Admin) - Toàn quyền hệ thống</option>
+                  <option value="user">Người dùng (User) - Tạo đề thi & Cấu hình API Key</option>
+                  <option value="admin">Quản trị viên (Admin) - Toàn quyền quản trị ứng dụng</option>
                 </select>
               </div>
 
-              {/* Active Toggle */}
-              <div className="pt-2 flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl">
+              {/* Active Switch */}
+              <div className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl">
                 <div>
-                  <div className="text-xs font-bold text-slate-200">Trạng thái Kích hoạt</div>
-                  <div className="text-[11px] text-slate-400">Cho phép truy cập hệ thống ngay</div>
+                  <p className="text-xs font-bold text-slate-200">Kích hoạt tài khoản</p>
+                  <p className="text-[11px] text-slate-400">Cho phép người dùng đăng nhập ngay</p>
                 </div>
                 <input
                   type="checkbox"
                   checked={formData.active}
                   onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                  className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  className="w-5 h-5 accent-emerald-500 cursor-pointer"
                 />
               </div>
 
-              <div className="flex items-center space-x-3 pt-3">
+              <div className="flex items-center space-x-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center space-x-2"
+                  className="w-1/2 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
                 >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Đang lưu...</span>
-                    </>
-                  ) : (
-                    <span>Lưu Tài Khoản</span>
-                  )}
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Lưu Tài Khoản</span>}
                 </button>
               </div>
             </form>
@@ -522,28 +537,30 @@ export const UserManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Confirm Delete Modal */}
+      {/* Delete Confirmation Modal */}
       {deletingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 bg-rose-950 text-rose-400 border border-rose-800 rounded-2xl flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
+              <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="font-extrabold text-white text-base">Xóa tài khoản này?</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Tài khoản <strong className="text-rose-400 font-mono">{deletingUser.email}</strong> sẽ bị xóa khỏi danh sách được phép truy cập.
-            </p>
+            <div>
+              <h3 className="font-extrabold text-white text-base">Xác Nhận Xóa Tài Khoản</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Bạn có chắc chắn muốn xóa tài khoản <strong className="text-rose-400">{deletingUser.username}</strong> không?
+              </p>
+            </div>
             <div className="flex items-center space-x-3 pt-2">
               <button
                 onClick={() => setDeletingUser(null)}
-                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
               >
                 Hủy
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer flex items-center justify-center space-x-1"
+                className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
               >
                 {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Xóa Ngay</span>}
               </button>

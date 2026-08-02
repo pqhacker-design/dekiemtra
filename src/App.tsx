@@ -669,13 +669,11 @@ export default function App() {
               )}
 
               {activeTab === 'settings' && (
-                <ProtectedRoute requiredRole="admin">
-                  <SettingsView
-                    settings={settings}
-                    onSaveSettings={handleSaveSettings}
-                    onClearAllData={handleClearAllData}
-                  />
-                </ProtectedRoute>
+                <SettingsView
+                  settings={settings}
+                  onSaveSettings={handleSaveSettings}
+                  onClearAllData={handleClearAllData}
+                />
               )}
             </main>
           </div>

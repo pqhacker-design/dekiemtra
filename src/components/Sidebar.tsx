@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'multicode', label: 'Đề đã tạo - Các mã đề', icon: FileSpreadsheet },
     { id: 'answers', label: 'Đáp án & Rubric', icon: CheckSquare },
     { id: 'user_management', label: 'Quản lý tài khoản', icon: Users, badge: 'ADMIN', adminOnly: true },
-    { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings, adminOnly: true },
+    { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings },
   ];
 
   // Filter out admin-only items if user is not admin (Requirement 6 & 15)

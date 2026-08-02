@@ -1,17 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
-import { auth, googleProvider } from '../firebase/firebase';
 import { AppUser, userService } from '../services/userService';
 
 export interface AuthContextType {
-  firebaseUser: User | null;
+  firebaseUser: any | null; // Backwards compatible null
   user: AppUser | null;
   role: 'admin' | 'user' | null;
   loading: boolean;
   isUnauthorized: boolean;
-  login: () => Promise<void>;
-  loginWithRedirect: () => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  loginWithRedirect?: () => Promise<void>;
   logout: () => Promise<void>;
+  changePassword: (newPassword: string) => Promise<void>;
   isAdmin: boolean;
   isUser: boolean;
   refetchUser: () => Promise<void>;
@@ -24,75 +23,63 @@ export const AuthContext = createContext<AuthContextType>({
   loading: true,
   isUnauthorized: false,
   login: async () => {},
-  loginWithRedirect: async () => {},
   logout: async () => {},
+  changePassword: async () => {},
   isAdmin: false,
   isUser: false,
   refetchUser: async () => {},
 });
 
+const SESSION_KEY = 'vision_test_app_user_id';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isUnauthorized, setIsUnauthorized] = useState<boolean>(false);
 
-  const syncUserFromFirestore = async (fbUser: User) => {
-    try {
-      const appUser = await userService.checkAndSyncUser(fbUser);
-      if (!appUser || appUser.active === false) {
-        setUser(appUser);
-        setIsUnauthorized(true);
-      } else {
-        setUser(appUser);
-        setIsUnauthorized(false);
-      }
-    } catch (err) {
-      console.error('Lỗi kiểm tra quyền Firestore:', err);
-      setUser(null);
-      setIsUnauthorized(true);
-    }
-  };
-
+  // Initialize and check saved session
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    const initAuth = async () => {
       setLoading(true);
-      if (fbUser) {
-        setFirebaseUser(fbUser);
-        await syncUserFromFirestore(fbUser);
-      } else {
-        setFirebaseUser(null);
-        setUser(null);
-        setIsUnauthorized(false);
-      }
-      setLoading(false);
-    });
+      try {
+        // Always ensure default admin account exists in Firestore
+        await userService.ensureDefaultAdmin();
 
-    return () => unsubscribe();
+        const savedUserId = localStorage.getItem(SESSION_KEY);
+        if (savedUserId) {
+          const appUser = await userService.getUserById(savedUserId);
+          if (appUser && appUser.active) {
+            setUser(appUser);
+            setIsUnauthorized(false);
+          } else if (appUser && !appUser.active) {
+            setUser(appUser);
+            setIsUnauthorized(true);
+          } else {
+            localStorage.removeItem(SESSION_KEY);
+            setUser(null);
+          }
+        }
+      } catch (err) {
+        console.error('Error initializing auth:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
   }, []);
 
-  const login = async () => {
+  const login = async (usernameInput: string, passwordInput: string) => {
     setLoading(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user) {
-        setFirebaseUser(result.user);
-        await syncUserFromFirestore(result.user);
+      const authenticatedUser = await userService.authenticateUser(usernameInput, passwordInput);
+      setUser(authenticatedUser);
+      setIsUnauthorized(false);
+      if (authenticatedUser.id) {
+        localStorage.setItem(SESSION_KEY, authenticatedUser.id);
       }
     } catch (err: any) {
-      console.error('Google login error:', err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loginWithRedirect = async () => {
-    setLoading(true);
-    try {
-      await signInWithRedirect(auth, googleProvider);
-    } catch (err: any) {
-      console.error('Google redirect login error:', err);
+      console.error('Login error:', err);
       throw err;
     } finally {
       setLoading(false);
@@ -102,8 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setLoading(true);
     try {
-      await signOut(auth);
-      setFirebaseUser(null);
+      localStorage.removeItem(SESSION_KEY);
       setUser(null);
       setIsUnauthorized(false);
     } catch (err) {
@@ -113,9 +99,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const changePassword = async (newPassword: string) => {
+    if (!user || !user.id) throw new Error('Chưa đăng nhập tài khoản.');
+    await userService.changePassword(user.id, newPassword);
+    setUser({ ...user, password: newPassword });
+  };
+
   const refetchUser = async () => {
-    if (firebaseUser) {
-      await syncUserFromFirestore(firebaseUser);
+    if (user && user.id) {
+      const updated = await userService.getUserById(user.id);
+      if (updated) {
+        setUser(updated);
+        setIsUnauthorized(!updated.active);
+      }
     }
   };
 
@@ -126,14 +122,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider
       value={{
-        firebaseUser,
+        firebaseUser: user ? { uid: user.id || 'admin', email: user.email, displayName: user.displayName } : null,
         user,
         role,
         loading,
         isUnauthorized,
         login,
-        loginWithRedirect,
         logout,
+        changePassword,
         isAdmin,
         isUser,
         refetchUser,
@@ -145,3 +141,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 };
 
 export const useAuth = () => useContext(AuthContext);
+

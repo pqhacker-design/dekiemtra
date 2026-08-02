@@ -25,8 +25,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Not logged in or unauthorized email
-  if (!firebaseUser || !user || isUnauthorized || !user.active) {
+  // Not logged in or unauthorized user
+  if (!user || isUnauthorized || !user.active) {
     return <Login />;
   }
 
