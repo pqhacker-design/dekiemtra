@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { User, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase/firebase';
 import { AppUser, userService } from '../services/userService';
 
@@ -10,6 +10,7 @@ export interface AuthContextType {
   loading: boolean;
   isUnauthorized: boolean;
   login: () => Promise<void>;
+  loginWithRedirect: () => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   isUser: boolean;
@@ -23,6 +24,7 @@ export const AuthContext = createContext<AuthContextType>({
   loading: true,
   isUnauthorized: false,
   login: async () => {},
+  loginWithRedirect: async () => {},
   logout: async () => {},
   isAdmin: false,
   isUser: false,
@@ -85,6 +87,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithRedirect = async () => {
+    setLoading(true);
+    try {
+      await signInWithRedirect(auth, googleProvider);
+    } catch (err: any) {
+      console.error('Google redirect login error:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -118,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isUnauthorized,
         login,
+        loginWithRedirect,
         logout,
         isAdmin,
         isUser,
