@@ -193,9 +193,9 @@ function evaluateStudentSessionResult(session: StudentSession, exam: ExamData) {
   const finalScore = Math.min(10.0, Math.round(totalEarnedScore * 100) / 100);
 
   return {
-    score: session.score !== undefined && session.score !== null ? session.score : finalScore,
-    correctCount: session.correctCount !== undefined && session.correctCount !== null ? session.correctCount : Math.floor(correctCount),
-    incorrectCount: session.incorrectCount !== undefined && session.incorrectCount !== null ? session.incorrectCount : Math.floor(incorrectCount),
+    score: finalScore,
+    correctCount: Math.floor(correctCount),
+    incorrectCount: Math.floor(incorrectCount),
     totalQuestions: totalQuestionsCount,
     startTime: session.startTime,
     submitTime: session.submitTime || new Date().toISOString(),
