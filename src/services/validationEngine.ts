@@ -1,4 +1,5 @@
 import { ExamMetadata, MatrixRow, Question, SpecRow } from '../types';
+import { safeJsonParse } from './jsonRepair';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -23,18 +24,9 @@ export class ValidationEngine {
     let parsed: any = null;
 
     try {
-      // Tìm khối JSON từ response text
-      let jsonStr = rawText.trim();
-      const firstBrace = jsonStr.indexOf('{');
-      const lastBrace = jsonStr.lastIndexOf('}');
-
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
-      }
-
-      parsed = JSON.parse(jsonStr);
+      parsed = safeJsonParse(rawText);
     } catch (e: any) {
-      errors.push(`Dữ liệu AI trả về không phải định dạng JSON hợp lệ: ${e.message}`);
+      errors.push(e.message || 'Dữ liệu AI trả về không phải định dạng JSON hợp lệ.');
       return {
         isValid: false,
         errors,
