@@ -121,6 +121,26 @@ export class OnlineExamService {
     return result;
   }
 
+  public static async generateUniqueExamCode(): Promise<string> {
+    let attempts = 0;
+    while (attempts < 50) {
+      const code = this.generateRandomCode();
+      const localExams = this.getLocalExams();
+      const isLocalTaken = localExams.some((e) => e.code && e.code.toUpperCase() === code);
+      if (isLocalTaken) {
+        attempts++;
+        continue;
+      }
+      const fsExam = await this.getPublishedExamFromFirestore(code);
+      if (fsExam) {
+        attempts++;
+        continue;
+      }
+      return code;
+    }
+    return this.generateRandomCode();
+  }
+
   private static getLocalExams(): any[] {
     try {
       const keys = this.getStorageKeys();
@@ -299,11 +319,32 @@ export class OnlineExamService {
     };
     examPackage: any;
   }) {
+    const userId = this.getActiveUserId();
+    let requestedCode = (data.code || '').trim().toUpperCase();
+
+    if (requestedCode) {
+      const existingFs = await this.getPublishedExamFromFirestore(requestedCode);
+      if (existingFs) {
+        const isSame = existingFs.id === data.examPackage?.id || (existingFs.createdBy === userId && existingFs.id === data.examPackage?.metadata?.id);
+        if (!isSame) {
+          throw new Error(`Mã đề thi '${requestedCode}' đã tồn tại trên hệ thống. Mã đề thi phải là duy nhất, tuyệt đối không trùng lặp giữa các tài khoản! Vui lòng chọn mã khác.`);
+        }
+      }
+    } else {
+      requestedCode = await this.generateUniqueExamCode();
+    }
+
+    const payload = {
+      ...data,
+      code: requestedCode,
+      createdBy: userId,
+    };
+
     let savedResult: { success: boolean; code: string; exam: any } | null = null;
     try {
       savedResult = await this.request<{ success: boolean; code: string; exam: any }>('/api/exam/save', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
     } catch (err: any) {
       if (
@@ -317,7 +358,7 @@ export class OnlineExamService {
       }
 
       // LocalStorage Fallback
-      const code = (data.code || this.generateRandomCode()).trim().toUpperCase();
+      const code = requestedCode;
       const newExam: any = {
         id: 'exam_local_' + Date.now(),
         code,
@@ -331,6 +372,7 @@ export class OnlineExamService {
         status: 'active',
         allowExplanations: data.allowExplanations !== false,
         allowedClasses: data.allowedClasses || [],
+        createdBy: userId,
         antiCheat: data.antiCheat || {
           disallowPrevious: false,
           shuffleQuestions: true,
@@ -415,7 +457,7 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const e = d.data() as any;
         if (e && e.code) {
-          if (userId === 'admin' || !e.createdBy || e.createdBy === userId) {
+          if (e.createdBy === userId || (!e.createdBy && userId === 'guest')) {
             const pkg = e.examPackage || {};
             const qCount = pkg.exams?.[0]?.questions?.length || 10;
             firestoreExams.push({
@@ -452,7 +494,7 @@ export class OnlineExamService {
     const map = new Map<string, OnlineExamItem>();
     [...apiExams, ...firestoreExams, ...localItems].forEach((item: any) => {
       if (item && item.code) {
-        if (userId === 'admin' || !item.createdBy || item.createdBy === userId) {
+        if (item.createdBy === userId || (!item.createdBy && userId === 'guest')) {
           const key = item.code.trim().toUpperCase();
           if (!map.has(key)) {
             map.set(key, item);
@@ -1108,7 +1150,7 @@ export class OnlineExamService {
     const map = new Map<string, StudentResultItem>();
     [...apiResults, ...firestoreResults, ...localResults].forEach((item) => {
       if (item && item.id) {
-        if (userId === 'admin' || teacherCodes.has((item.examCode || '').toUpperCase())) {
+        if (teacherCodes.has((item.examCode || '').toUpperCase())) {
           map.set(item.id, item);
         }
       }
@@ -1187,7 +1229,7 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const data = d.data();
         if (data && data.id) {
-          if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !data.createdBy || data.createdBy === userId) {
+          if (ignoreUserIdFilter || data.createdBy === userId || (!data.createdBy && userId === 'guest')) {
             items.push(data);
           }
         }
@@ -1208,7 +1250,7 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const data = d.data();
         if (data && data.id) {
-          if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !data.createdBy || data.createdBy === userId) {
+          if (ignoreUserIdFilter || data.createdBy === userId || (!data.createdBy && userId === 'guest')) {
             items.push(data);
           }
         }
@@ -1239,7 +1281,7 @@ export class OnlineExamService {
     const map = new Map<string, any>();
     [...apiClasses, ...firestoreClasses, ...localClasses].forEach((cls) => {
       if (cls && cls.id) {
-        if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !cls.createdBy || cls.createdBy === userId) {
+        if (ignoreUserIdFilter || cls.createdBy === userId || (!cls.createdBy && userId === 'guest')) {
           map.set(cls.id, cls);
         }
       }
@@ -1381,7 +1423,7 @@ export class OnlineExamService {
     const map = new Map<string, any>();
     [...apiStudents, ...firestoreStudents, ...localStudents].forEach((s) => {
       if (s && s.id) {
-        if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !s.createdBy || s.createdBy === userId) {
+        if (ignoreUserIdFilter || s.createdBy === userId || (!s.createdBy && userId === 'guest')) {
           map.set(s.id, s);
         }
       }
