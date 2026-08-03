@@ -468,7 +468,7 @@ export function registerExamRoutes(app: express.Express) {
       const saved = ClassRepository.saveStudents(prepared, userId);
       return res.json({ success: true, students: saved });
     } catch (err: any) {
-      return res.status(500).json({ error: 'Lỗi lưu danh sách học sinh: ' + err.message });
+      return res.status(400).json({ error: err.message || 'Lỗi lưu danh sách học sinh' });
     }
   });
 
