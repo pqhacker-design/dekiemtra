@@ -110,12 +110,36 @@ export default function App() {
 
   // URL Query Param Check on Mount (e.g., ?exam=A7X92Q or ?code=A7X92Q)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const codeParam = params.get('exam') || params.get('code');
-    if (codeParam) {
-      setStudentInitialCode(codeParam.toUpperCase());
-      setActiveTab('student_exam');
-    }
+    const parseExamCodeFromUrl = () => {
+      // 1. Search searchParams
+      const searchParams = new URLSearchParams(window.location.search);
+      let code = searchParams.get('exam') || searchParams.get('code');
+
+      // 2. Search hash query parameters
+      if (!code && window.location.hash) {
+        const hashQueryIndex = window.location.hash.indexOf('?');
+        if (hashQueryIndex !== -1) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(hashQueryIndex));
+          code = hashParams.get('exam') || hashParams.get('code');
+        }
+      }
+
+      // 3. Regex search on full href
+      if (!code) {
+        const match = window.location.href.match(/[?&](exam|code)=([a-zA-Z0-9_-]+)/i);
+        if (match && match[2]) {
+          code = match[2];
+        }
+      }
+
+      if (code) {
+        const cleanCode = code.trim().toUpperCase();
+        setStudentInitialCode(cleanCode);
+        setActiveTab('student_exam');
+      }
+    };
+
+    parseExamCodeFromUrl();
   }, []);
 
   // Generation status & Modals
