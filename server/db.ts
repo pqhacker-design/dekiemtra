@@ -269,7 +269,7 @@ export class ExamRepository {
   static getExams(userId?: string): ExamData[] {
     const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     if (!userId) return exams;
-    return exams.filter((e) => e.createdBy === userId || (!e.createdBy && userId === 'admin'));
+    return exams.filter((e) => e.createdBy === userId || !e.createdBy);
   }
 
   static getExamByCode(code: string): ExamData | undefined {
@@ -379,7 +379,7 @@ export class ExamRepository {
     const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     let filteredExams = exams;
     if (userId) {
-      filteredExams = exams.filter((e) => e.createdBy === userId || (!e.createdBy && userId === 'admin'));
+      filteredExams = exams.filter((e) => e.createdBy === userId || !e.createdBy);
     }
     const userExamCodes = new Set(filteredExams.map((e) => e.code.toUpperCase()));
 
@@ -420,7 +420,7 @@ export class ClassRepository {
   static getClasses(userId?: string): ClassItem[] {
     let classes = readJsonFile<ClassItem[]>(CLASSES_FILE, sampleInitialClasses);
     if (userId) {
-      classes = classes.filter((c) => c.createdBy === userId || (!c.createdBy && userId === 'admin'));
+      classes = classes.filter((c) => c.createdBy === userId || !c.createdBy);
     }
     const students = this.getStudents(undefined, userId);
     return classes.map((cls) => ({
@@ -470,7 +470,7 @@ export class ClassRepository {
   static getStudents(classIdOrName?: string, userId?: string): StudentItem[] {
     let students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
     if (userId) {
-      students = students.filter((s) => s.createdBy === userId || (!s.createdBy && userId === 'admin'));
+      students = students.filter((s) => s.createdBy === userId || !s.createdBy);
     }
     if (!classIdOrName || classIdOrName === 'ALL') return students;
     const norm = classIdOrName.trim().toLowerCase();
