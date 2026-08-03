@@ -702,8 +702,8 @@ export class OnlineExamService {
       }
 
       // Database validation against classes & students (Firestore, API, Local)
-      const classesRes = await this.getClasses();
-      const studentsRes = await this.getStudents();
+      const classesRes = await this.getClasses(true);
+      const studentsRes = await this.getStudents(undefined, true);
       const localClasses = classesRes.classes || [];
       const localStudents = studentsRes.students || [];
 
@@ -1178,7 +1178,7 @@ export class OnlineExamService {
     }
   }
 
-  private static async getSystemClassesFromFirestore(): Promise<any[]> {
+  private static async getSystemClassesFromFirestore(ignoreUserIdFilter: boolean = false): Promise<any[]> {
     const userId = this.getActiveUserId();
     try {
       const colRef = collection(db, 'system_classes');
@@ -1187,7 +1187,7 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const data = d.data();
         if (data && data.id) {
-          if (userId === 'admin' || !data.createdBy || data.createdBy === userId) {
+          if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !data.createdBy || data.createdBy === userId) {
             items.push(data);
           }
         }
@@ -1199,7 +1199,7 @@ export class OnlineExamService {
     }
   }
 
-  private static async getSystemStudentsFromFirestore(): Promise<any[]> {
+  private static async getSystemStudentsFromFirestore(ignoreUserIdFilter: boolean = false): Promise<any[]> {
     const userId = this.getActiveUserId();
     try {
       const colRef = collection(db, 'system_students');
@@ -1208,7 +1208,7 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const data = d.data();
         if (data && data.id) {
-          if (userId === 'admin' || !data.createdBy || data.createdBy === userId) {
+          if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !data.createdBy || data.createdBy === userId) {
             items.push(data);
           }
         }
@@ -1221,7 +1221,7 @@ export class OnlineExamService {
   }
 
   // 13. Classes Management
-  static async getClasses() {
+  static async getClasses(ignoreUserIdFilter: boolean = false) {
     let apiClasses: any[] = [];
     const userId = this.getActiveUserId();
     try {
@@ -1233,13 +1233,13 @@ export class OnlineExamService {
       // ignore
     }
 
-    const firestoreClasses = await this.getSystemClassesFromFirestore();
+    const firestoreClasses = await this.getSystemClassesFromFirestore(ignoreUserIdFilter);
     const localClasses = this.getLocalClasses();
 
     const map = new Map<string, any>();
     [...apiClasses, ...firestoreClasses, ...localClasses].forEach((cls) => {
       if (cls && cls.id) {
-        if (userId === 'admin' || !cls.createdBy || cls.createdBy === userId) {
+        if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !cls.createdBy || cls.createdBy === userId) {
           map.set(cls.id, cls);
         }
       }
@@ -1362,7 +1362,7 @@ export class OnlineExamService {
   }
 
   // 14. Students Management
-  static async getStudents(classId?: string) {
+  static async getStudents(classId?: string, ignoreUserIdFilter: boolean = false) {
     let apiStudents: any[] = [];
     const userId = this.getActiveUserId();
     try {
@@ -1375,13 +1375,13 @@ export class OnlineExamService {
       // ignore
     }
 
-    const firestoreStudents = await this.getSystemStudentsFromFirestore();
+    const firestoreStudents = await this.getSystemStudentsFromFirestore(ignoreUserIdFilter);
     const localStudents = this.getLocalStudents();
 
     const map = new Map<string, any>();
     [...apiStudents, ...firestoreStudents, ...localStudents].forEach((s) => {
       if (s && s.id) {
-        if (userId === 'admin' || !s.createdBy || s.createdBy === userId) {
+        if (ignoreUserIdFilter || userId === 'admin' || userId === 'guest' || !userId || !s.createdBy || s.createdBy === userId) {
           map.set(s.id, s);
         }
       }
@@ -1489,19 +1489,38 @@ export class OnlineExamService {
       // ignore API failure
     }
 
-    // 2. Query Firestore & local students
-    const studentsRes = await this.getStudents();
+    // 2. Query Firestore & local students (ignoreUserIdFilter = true)
+    const studentsRes = await this.getStudents(undefined, true);
     const allStudents = studentsRes.students || [];
 
     const normSbdA = cleanSbdUpper.replace(/[^a-zA-Z0-9]/g, '');
 
-    const student = allStudents.find((s) => {
+    // First try direct / alphanumeric match
+    let student = allStudents.find((s) => {
       if (!s || !s.sbd) return false;
       const sbdVal = String(s.sbd).trim();
       const sbdValUpper = sbdVal.toUpperCase();
       const normSbdB = sbdValUpper.replace(/[^a-zA-Z0-9]/g, '');
       return sbdValUpper === cleanSbdUpper || sbdVal === cleanSbd || (normSbdA && normSbdA === normSbdB);
     });
+
+    // If not found, try matching Class + SBD combinations (e.g., Class "6" + SBD "201" => "6/201")
+    if (!student) {
+      student = allStudents.find((s) => {
+        if (!s) return false;
+        const sbdVal = String(s.sbd || '').trim();
+        const clsVal = String(s.className || '').trim();
+
+        const normCls = clsVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+        const normStSbd = sbdVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+
+        if (normCls && normStSbd && normCls + normStSbd === normSbdA) return true;
+        if (sbdVal && cleanSbdUpper.endsWith('/' + sbdVal.toUpperCase())) return true;
+        if (sbdVal && cleanSbdUpper.endsWith('-' + sbdVal.toUpperCase())) return true;
+
+        return false;
+      });
+    }
 
     if (!student) {
       throw new Error(`Không tìm thấy học sinh với số báo danh '${cleanSbd}'.`);
@@ -1517,12 +1536,27 @@ export class OnlineExamService {
           Array.isArray(examRes.info.allowedClasses) &&
           examRes.info.allowedClasses.length > 0
         ) {
-          const normalizeClass = (str: string) =>
-            str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
+          const normalizeClass = (str: string) => {
+            if (!str) return '';
+            return str
+              .trim()
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/^(lớp|lop|class|khối|khoi)\s*/gi, '')
+              .replace(/[^a-z0-9]/gi, '');
+          };
+
           const studentNorm = normalizeClass(student.className);
-          const isAllowed = examRes.info.allowedClasses.some(
-            (c: string) => normalizeClass(c) === studentNorm || c === student.classId
-          );
+          const isAllowed = examRes.info.allowedClasses.some((c: string) => {
+            const cNorm = normalizeClass(c);
+            return (
+              cNorm === studentNorm ||
+              c === student.classId ||
+              (cNorm && studentNorm && (studentNorm.startsWith(cNorm) || cNorm.startsWith(studentNorm)))
+            );
+          });
+
           if (!isAllowed) {
             throw new Error(
               `Cảnh báo: Học sinh ${student.name} (Lớp ${student.className}) không thuộc danh sách lớp được phép làm bài thi này (${examRes.info.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
