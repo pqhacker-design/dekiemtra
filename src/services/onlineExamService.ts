@@ -579,6 +579,7 @@ export class OnlineExamService {
           totalPoints: number;
           antiCheat: any;
           questionCount: number;
+          allowedClasses?: string[];
         };
       }>(`/api/exam/student-info/${encodeURIComponent(cleanCode)}`);
       return res;
@@ -600,6 +601,7 @@ export class OnlineExamService {
             totalPoints: firestoreExam.totalPoints,
             antiCheat: firestoreExam.antiCheat,
             questionCount: questions.length,
+            allowedClasses: firestoreExam.allowedClasses,
           },
         };
       }
@@ -621,6 +623,7 @@ export class OnlineExamService {
           totalPoints: exam.totalPoints,
           antiCheat: exam.antiCheat,
           questionCount: questions.length,
+          allowedClasses: exam.allowedClasses,
         },
       };
     }
@@ -674,9 +677,11 @@ export class OnlineExamService {
         }
       }
 
-      // Local database validation against local classes & students
-      const localClasses = this.getLocalClasses();
-      const localStudents = this.getLocalStudents();
+      // Database validation against classes & students (Firestore, API, Local)
+      const classesRes = await this.getClasses();
+      const studentsRes = await this.getStudents();
+      const localClasses = classesRes.classes || [];
+      const localStudents = studentsRes.students || [];
 
       const normClass = normalizeClassStr(data.studentClass);
       const normName = normalizeNameStr(data.studentName);
@@ -1052,13 +1057,114 @@ export class OnlineExamService {
     }
   }
 
+  private static async syncClassToFirestore(cls: any): Promise<void> {
+    if (!cls || !cls.id) return;
+    try {
+      const docRef = doc(db, 'system_classes', cls.id);
+      await setDoc(
+        docRef,
+        {
+          ...cls,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Lỗi đồng bộ class tới Firestore:', e);
+    }
+  }
+
+  private static async syncStudentToFirestore(student: any): Promise<void> {
+    if (!student || !student.id) return;
+    try {
+      const docRef = doc(db, 'system_students', student.id);
+      const cleanSbd = student.sbd ? student.sbd.trim().toUpperCase() : '';
+      await setDoc(
+        docRef,
+        {
+          ...student,
+          sbd: cleanSbd,
+          sbdOriginal: student.sbd ? student.sbd.trim() : '',
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Lỗi đồng bộ student tới Firestore:', e);
+    }
+  }
+
+  private static async getSystemClassesFromFirestore(): Promise<any[]> {
+    try {
+      const colRef = collection(db, 'system_classes');
+      const snap = await getDocs(colRef);
+      const items: any[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data && data.id) {
+          items.push(data);
+        }
+      });
+      return items;
+    } catch (e) {
+      console.warn('Lỗi đọc system_classes từ Firestore:', e);
+      return [];
+    }
+  }
+
+  private static async getSystemStudentsFromFirestore(): Promise<any[]> {
+    try {
+      const colRef = collection(db, 'system_students');
+      const snap = await getDocs(colRef);
+      const items: any[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data && data.id) {
+          items.push(data);
+        }
+      });
+      return items;
+    } catch (e) {
+      console.warn('Lỗi đọc system_students từ Firestore:', e);
+      return [];
+    }
+  }
+
   // 13. Classes Management
   static async getClasses() {
+    let apiClasses: any[] = [];
     try {
-      return await this.request<{ success: boolean; classes: any[] }>('/api/classes');
+      const res = await this.request<{ success: boolean; classes: any[] }>('/api/classes');
+      if (res.success && Array.isArray(res.classes)) {
+        apiClasses = res.classes;
+      }
     } catch {
-      return { success: true, classes: this.getLocalClasses() };
+      // ignore
     }
+
+    const firestoreClasses = await this.getSystemClassesFromFirestore();
+    const localClasses = this.getLocalClasses();
+
+    const map = new Map<string, any>();
+    [...apiClasses, ...firestoreClasses, ...localClasses].forEach((cls) => {
+      if (cls && cls.id) {
+        map.set(cls.id, cls);
+      }
+    });
+
+    const merged = Array.from(map.values());
+
+    if (localClasses.length > 0 || apiClasses.length > 0) {
+      const firestoreIds = new Set(firestoreClasses.map((c) => c.id));
+      const unSynced = [...apiClasses, ...localClasses].filter((c) => c && c.id && !firestoreIds.has(c.id));
+      if (unSynced.length > 0) {
+        unSynced.forEach((cls) => {
+          this.syncClassToFirestore(cls).catch(() => {});
+        });
+      }
+    }
+
+    return { success: true, classes: merged };
   }
 
   static async saveClass(data: {
@@ -1069,105 +1175,232 @@ export class OnlineExamService {
     teacherName?: string;
     notes?: string;
   }) {
+    let savedClass: any = null;
     try {
-      return await this.request<{ success: boolean; class: any }>('/api/classes', {
+      const res = await this.request<{ success: boolean; class: any }>('/api/classes', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+      if (res.success && res.class) {
+        savedClass = res.class;
+      }
     } catch {
-      const classes = this.getLocalClasses();
-      const id = data.id || 'cls_' + Date.now();
-      const newCls = { ...data, id, createdAt: new Date().toISOString() };
-      const updated = [newCls, ...classes.filter((c) => c.id !== id)];
-      this.saveLocalClasses(updated);
-      return { success: true, class: newCls };
+      // ignore
     }
+
+    if (!savedClass) {
+      const id = data.id || 'cls_' + Date.now();
+      savedClass = { ...data, id, createdAt: new Date().toISOString() };
+    }
+
+    const classes = this.getLocalClasses();
+    const updated = [savedClass, ...classes.filter((c) => c.id !== savedClass.id)];
+    this.saveLocalClasses(updated);
+
+    await this.syncClassToFirestore(savedClass);
+
+    return { success: true, class: savedClass };
   }
 
   static async deleteClass(id: string) {
     try {
-      return await this.request<{ success: boolean }>(`/api/classes/${encodeURIComponent(id)}`, {
+      await this.request<{ success: boolean }>(`/api/classes/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
     } catch {
-      const classes = this.getLocalClasses().filter((c) => c.id !== id);
-      this.saveLocalClasses(classes);
-      return { success: true };
+      // ignore
     }
+
+    const classes = this.getLocalClasses().filter((c) => c.id !== id);
+    this.saveLocalClasses(classes);
+
+    try {
+      const docRef = doc(db, 'system_classes', id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn('Lỗi xóa system_classes từ Firestore:', e);
+    }
+
+    return { success: true };
   }
 
   // 14. Students Management
   static async getStudents(classId?: string) {
+    let apiStudents: any[] = [];
     try {
-      const query = classId ? `?classId=${encodeURIComponent(classId)}` : '';
-      return await this.request<{ success: boolean; students: any[] }>(`/api/students${query}`);
+      const queryStr = classId ? `?classId=${encodeURIComponent(classId)}` : '';
+      const res = await this.request<{ success: boolean; students: any[] }>(`/api/students${queryStr}`);
+      if (res.success && Array.isArray(res.students)) {
+        apiStudents = res.students;
+      }
     } catch {
-      const students = this.getLocalStudents();
-      const filtered = classId ? students.filter((s) => s.classId === classId) : students;
-      return { success: true, students: filtered };
+      // ignore
     }
+
+    const firestoreStudents = await this.getSystemStudentsFromFirestore();
+    const localStudents = this.getLocalStudents();
+
+    const map = new Map<string, any>();
+    [...apiStudents, ...firestoreStudents, ...localStudents].forEach((s) => {
+      if (s && s.id) {
+        map.set(s.id, s);
+      }
+    });
+
+    let allStudents = Array.from(map.values());
+
+    if (localStudents.length > 0 || apiStudents.length > 0) {
+      const firestoreIds = new Set(firestoreStudents.map((s) => s.id));
+      const unSynced = [...apiStudents, ...localStudents].filter((s) => s && s.id && !firestoreIds.has(s.id));
+      if (unSynced.length > 0) {
+        unSynced.forEach((st) => {
+          this.syncStudentToFirestore(st).catch(() => {});
+        });
+      }
+    }
+
+    if (classId) {
+      allStudents = allStudents.filter((s) => s.classId === classId || s.className === classId);
+    }
+
+    return { success: true, students: allStudents };
   }
 
   static async saveStudents(students: any | any[]) {
+    const list = Array.isArray(students) ? students : [students];
+    let savedList: any[] = [];
+
     try {
-      return await this.request<{ success: boolean; students: any[] }>('/api/students', {
+      const res = await this.request<{ success: boolean; students: any[] }>('/api/students', {
         method: 'POST',
         body: JSON.stringify(students),
       });
+      if (res.success && Array.isArray(res.students)) {
+        savedList = res.students;
+      }
     } catch {
-      const list = Array.isArray(students) ? students : [students];
-      const existing = this.getLocalStudents();
-      const newItems = list.map((s) => ({
+      // ignore
+    }
+
+    if (savedList.length === 0) {
+      savedList = list.map((s) => ({
         ...s,
         id: s.id || 'std_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
         createdAt: s.createdAt || new Date().toISOString(),
       }));
-
-      const existingMap = new Map(existing.map((s) => [s.id, s]));
-      newItems.forEach((s) => existingMap.set(s.id, s));
-      const updated = Array.from(existingMap.values());
-      this.saveLocalStudents(updated);
-      return { success: true, students: newItems };
     }
+
+    const existing = this.getLocalStudents();
+    const existingMap = new Map(existing.map((s) => [s.id, s]));
+    savedList.forEach((s) => existingMap.set(s.id, s));
+    const updated = Array.from(existingMap.values());
+    this.saveLocalStudents(updated);
+
+    for (const st of savedList) {
+      await this.syncStudentToFirestore(st);
+    }
+
+    return { success: true, students: savedList };
   }
 
   static async deleteStudent(id: string) {
     try {
-      return await this.request<{ success: boolean }>(`/api/students/${encodeURIComponent(id)}`, {
+      await this.request<{ success: boolean }>(`/api/students/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
     } catch {
-      const students = this.getLocalStudents().filter((s) => s.id !== id);
-      this.saveLocalStudents(students);
-      return { success: true };
+      // ignore
     }
+
+    const students = this.getLocalStudents().filter((s) => s.id !== id);
+    this.saveLocalStudents(students);
+
+    try {
+      const docRef = doc(db, 'system_students', id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn('Lỗi xóa system_students từ Firestore:', e);
+    }
+
+    return { success: true };
   }
 
   // 15. Lookup Student by SBD
   static async lookupStudentBySbd(sbd: string, code?: string) {
+    const cleanSbd = (sbd || '').trim();
+    const cleanSbdUpper = cleanSbd.toUpperCase();
+
+    // 1. Try API
     try {
       const queryCode = code ? `&code=${encodeURIComponent(code)}` : '';
-      return await this.request<{
+      const res = await this.request<{
         success: boolean;
         student: { id: string; sbd: string; name: string; className: string; school?: string };
-      }>(`/api/exam/lookup-student?sbd=${encodeURIComponent(sbd)}${queryCode}`);
-    } catch {
-      const students = this.getLocalStudents();
-      const student = students.find((s) => s.sbd && s.sbd.trim().toUpperCase() === sbd.trim().toUpperCase());
-      if (!student) {
-        throw new Error(`Không tìm thấy học sinh với số báo danh '${sbd}'.`);
+      }>(`/api/exam/lookup-student?sbd=${encodeURIComponent(cleanSbd)}${queryCode}`);
+      if (res.success && res.student) {
+        return res;
       }
-      return {
-        success: true,
-        student: {
-          id: student.id,
-          sbd: student.sbd,
-          name: student.name,
-          className: student.className,
-          school: student.notes || 'Trường THCS / THPT',
-        },
-      };
+    } catch {
+      // ignore API failure
     }
+
+    // 2. Query Firestore & local students
+    const studentsRes = await this.getStudents();
+    const allStudents = studentsRes.students || [];
+
+    const normSbdA = cleanSbdUpper.replace(/[^a-zA-Z0-9]/g, '');
+
+    const student = allStudents.find((s) => {
+      if (!s || !s.sbd) return false;
+      const sbdVal = String(s.sbd).trim();
+      const sbdValUpper = sbdVal.toUpperCase();
+      const normSbdB = sbdValUpper.replace(/[^a-zA-Z0-9]/g, '');
+      return sbdValUpper === cleanSbdUpper || sbdVal === cleanSbd || (normSbdA && normSbdA === normSbdB);
+    });
+
+    if (!student) {
+      throw new Error(`Không tìm thấy học sinh với số báo danh '${cleanSbd}'.`);
+    }
+
+    // 3. Allowed classes check if exam code provided
+    if (code) {
+      try {
+        const examRes = await this.getStudentExamInfo(code);
+        if (
+          examRes.success &&
+          examRes.info &&
+          Array.isArray(examRes.info.allowedClasses) &&
+          examRes.info.allowedClasses.length > 0
+        ) {
+          const normalizeClass = (str: string) =>
+            str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
+          const studentNorm = normalizeClass(student.className);
+          const isAllowed = examRes.info.allowedClasses.some(
+            (c: string) => normalizeClass(c) === studentNorm || c === student.classId
+          );
+          if (!isAllowed) {
+            throw new Error(
+              `Cảnh báo: Học sinh ${student.name} (Lớp ${student.className}) không thuộc danh sách lớp được phép làm bài thi này (${examRes.info.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
+            );
+          }
+        }
+      } catch (err: any) {
+        if (err.message && err.message.includes('không thuộc danh sách lớp')) {
+          throw err;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      student: {
+        id: student.id,
+        sbd: student.sbd,
+        name: student.name,
+        className: student.className,
+        school: student.notes || 'Trường THCS / THPT',
+      },
+    };
   }
 
   // 16. Reset Student Session (Allow Retake)
