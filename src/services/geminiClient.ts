@@ -23,7 +23,7 @@ export async function callGeminiApi({
 }: GeminiApiOptions): Promise<string> {
   const apiKey = customApiKey?.trim();
   if (!apiKey) {
-    throw new Error('Chưa cấu hình API Key. Bắt buộc người dùng phải nhập Gemini API Key cá nhân trong phần Cài Đặt Hệ Thống.');
+    throw new Error('[NO_API_KEY] Chưa cấu hình Gemini API Key cá nhân. Vui lòng nhập API Key để tiếp tục.');
   }
 
   const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.6-flash';
@@ -164,7 +164,10 @@ export async function callGeminiApi({
         }
 
         if (errMsg.includes('API key not valid') || errMsg.includes('API_KEY_INVALID')) {
-          throw new Error('API Key cá nhân không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại trong phần Cài Đặt Hệ Thống!');
+          throw new Error('[INVALID_API_KEY] API Key cá nhân không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra và nhập lại khóa API mới.');
+        }
+        if (errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('quota')) {
+          throw new Error('[QUOTA_EXHAUSTED] Bạn đã sử dụng hết hạn ngạch (Quota) cùa API Key Gemini cá nhân. Vui lòng thử lại sau ít phút hoặc đổi sang API Key khác.');
         }
         throw new Error(directErr.message || 'Lỗi khi gọi Gemini API.');
       }
@@ -172,6 +175,10 @@ export async function callGeminiApi({
   }
 
   const rawMsg = String(lastError?.message || '');
+  if (rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('429') || rawMsg.includes('Quota exceeded') || rawMsg.includes('quota')) {
+    throw new Error('[QUOTA_EXHAUSTED] Bạn đã sử dụng hết hạn ngạch (Quota) của API Key Gemini hiện tại. Vui lòng nhập API Key mới hoặc nâng cấp tài khoản tại Google AI Studio!');
+  }
+
   if (rawMsg.includes('503') || rawMsg.includes('UNAVAILABLE') || rawMsg.includes('high demand')) {
     throw new Error(
       'Máy chủ Gemini AI hiện tại đang quá tải (503 High Demand). Hệ thống đã tự động thử lại nhiều lần. Vui lòng bấm Sinh đề thi lại sau 5-10 giây!'
