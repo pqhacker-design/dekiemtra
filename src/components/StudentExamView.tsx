@@ -82,7 +82,7 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   const [systemStudents, setSystemStudents] = useState<any[]>([]);
 
   useEffect(() => {
-    OnlineExamService.getClasses()
+    OnlineExamService.getClasses(true)
       .then((res) => {
         if (res.success && res.classes) {
           setSystemClasses(res.classes);
@@ -90,7 +90,7 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
       })
       .catch((err) => console.error('Lỗi khi tải danh sách lớp:', err));
 
-    OnlineExamService.getStudents()
+    OnlineExamService.getStudents(undefined, true)
       .then((res) => {
         if (res.success && res.students) {
           setSystemStudents(res.students);
@@ -104,7 +104,9 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
     return str
       .trim()
       .toLowerCase()
-      .replace(/^(lớp|lop|class)\s*/gi, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^(lớp|lop|class|khối|khoi)\s*/gi, '')
       .replace(/[^a-z0-9]/gi, '');
   };
 
@@ -224,7 +226,13 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
     // Client-side validation for Allowed Classes
     if (examInfo && examInfo.allowedClasses && Array.isArray(examInfo.allowedClasses) && examInfo.allowedClasses.length > 0) {
       const studentNorm = normalizeClassStr(curClass);
-      const isAllowed = examInfo.allowedClasses.some((c: string) => normalizeClassStr(c) === studentNorm);
+      const isAllowed = examInfo.allowedClasses.some((c: string) => {
+        const cNorm = normalizeClassStr(c);
+        return (
+          cNorm === studentNorm ||
+          (cNorm && studentNorm && (studentNorm.startsWith(cNorm) || cNorm.startsWith(studentNorm)))
+        );
+      });
       if (!isAllowed) {
         setLoginError(
           `Cảnh báo: Tên lớp "${curClass}" không thuộc danh sách các lớp được tham gia bài thi này (${examInfo.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
