@@ -71,8 +71,9 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   // Result State
   const [examResult, setExamResult] = useState<any>(null);
 
-  // System Classes for validation
+  // System Classes and Students for validation
   const [systemClasses, setSystemClasses] = useState<any[]>([]);
+  const [systemStudents, setSystemStudents] = useState<any[]>([]);
 
   useEffect(() => {
     OnlineExamService.getClasses()
@@ -82,6 +83,14 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
         }
       })
       .catch((err) => console.error('Lỗi khi tải danh sách lớp:', err));
+
+    OnlineExamService.getStudents()
+      .then((res) => {
+        if (res.success && res.students) {
+          setSystemStudents(res.students);
+        }
+      })
+      .catch((err) => console.error('Lỗi khi tải danh sách học sinh:', err));
   }, []);
 
   const normalizeClassStr = (str: string) => {
@@ -91,6 +100,16 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
       .toLowerCase()
       .replace(/^(lớp|lop|class)\s*/gi, '')
       .replace(/[^a-z0-9]/gi, '');
+  };
+
+  const normalizeNameStr = (str: string) => {
+    if (!str) return '';
+    return str
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
   };
 
   // Auto-check Exam Code metadata on typing or initial load
@@ -202,10 +221,59 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
       const isAllowed = examInfo.allowedClasses.some((c: string) => normalizeClassStr(c) === studentNorm);
       if (!isAllowed) {
         setLoginError(
-          `Cảnh báo: Tên lớp "${curClass}" không khớp hoặc không thuộc danh sách các lớp được tham gia bài thi này (${examInfo.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
+          `Cảnh báo: Tên lớp "${curClass}" không thuộc danh sách các lớp được tham gia bài thi này (${examInfo.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`
         );
         setCheckingCode(false);
         return;
+      }
+    }
+
+    const studentNormClass = normalizeClassStr(curClass);
+    const studentNormName = normalizeNameStr(curName);
+
+    // Client-side validation for System Classes
+    if (systemClasses.length > 0 || systemStudents.length > 0) {
+      const isClassValid =
+        systemClasses.some((c) => normalizeClassStr(c.name) === studentNormClass || c.id === curClass) ||
+        systemStudents.some((s) => normalizeClassStr(s.className) === studentNormClass) ||
+        (examInfo?.allowedClasses && examInfo.allowedClasses.some((c: string) => normalizeClassStr(c) === studentNormClass));
+
+      if (!isClassValid) {
+        setLoginError(`Cảnh báo: Lớp "${curClass}" không tồn tại trên hệ thống. Vui lòng kiểm tra lại thông tin Lớp!`);
+        setCheckingCode(false);
+        return;
+      }
+    }
+
+    // Client-side validation for System Students
+    if (systemStudents.length > 0) {
+      const matchingNameStudents = systemStudents.filter(
+        (s) => normalizeNameStr(s.name) === studentNormName || s.name.trim().toLowerCase() === curName.trim().toLowerCase()
+      );
+
+      if (matchingNameStudents.length > 0) {
+        const exactMatch = matchingNameStudents.find(
+          (s) => normalizeClassStr(s.className) === studentNormClass || s.classId === curClass
+        );
+        if (!exactMatch) {
+          const actualClass = matchingNameStudents[0].className;
+          setLoginError(`Cảnh báo: Học sinh "${curName}" được ghi nhận thuộc Lớp "${actualClass}", không phải Lớp "${curClass}". Vui lòng kiểm tra lại thông tin Lớp!`);
+          setCheckingCode(false);
+          return;
+        }
+      } else {
+        const studentsInClass = systemStudents.filter(
+          (s) => normalizeClassStr(s.className) === studentNormClass || s.classId === curClass
+        );
+        if (studentsInClass.length > 0) {
+          setLoginError(`Cảnh báo: Không tìm thấy học sinh "${curName}" trong danh sách Lớp "${curClass}" trên hệ thống. Vui lòng kiểm tra lại chính xác Họ và Tên!`);
+          setCheckingCode(false);
+          return;
+        } else {
+          setLoginError(`Cảnh báo: Học sinh "${curName}" (Lớp ${curClass}) không có trong danh sách học sinh của hệ thống. Vui lòng kiểm tra lại thông tin tên và lớp!`);
+          setCheckingCode(false);
+          return;
+        }
       }
     }
 
@@ -544,17 +612,43 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
               /* Manual Input Fallback */
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <label className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">
-                    Họ Và Tên Học Sinh (*)
+                  <label className="font-bold text-slate-300 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                    <span>Họ Và Tên Học Sinh (*)</span>
+                    {studentClass && systemStudents.some((s) => normalizeClassStr(s.className) === normalizeClassStr(studentClass)) && (
+                      <span className="text-[10px] text-teal-400 font-semibold">
+                        Gợi ý theo Lớp {studentClass}
+                      </span>
+                    )}
                   </label>
                   <input
                     type="text"
+                    list="system-students-name-list"
                     required={loginMode === 'MANUAL'}
                     placeholder="VD: Nguyễn Văn An"
                     value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 font-semibold text-slate-100 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                    onChange={(e) => {
+                      setStudentName(e.target.value);
+                      if (loginError) setLoginError('');
+                    }}
+                    className={`w-full bg-slate-900 border rounded-2xl px-4 py-3 font-semibold text-slate-100 focus:ring-2 focus:outline-hidden transition-all ${
+                      loginError && (loginError.includes('Họ') || loginError.includes('tên') || loginError.includes('học sinh') || loginError.includes('Học sinh'))
+                        ? 'border-rose-500 focus:ring-rose-500 bg-rose-950/20'
+                        : 'border-slate-700 focus:ring-teal-500'
+                    }`}
                   />
+                  <datalist id="system-students-name-list">
+                    {systemStudents
+                      .filter((s) =>
+                        studentClass
+                          ? normalizeClassStr(s.className) === normalizeClassStr(studentClass) || s.classId === studentClass
+                          : true
+                      )
+                      .map((s) => (
+                        <option key={s.id} value={s.name}>
+                          {s.className} {s.sbd ? `- SBD: ${s.sbd}` : ''}
+                        </option>
+                      ))}
+                  </datalist>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -563,12 +657,13 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
                       <span>Lớp (*)</span>
                       {examInfo?.allowedClasses && examInfo.allowedClasses.length > 0 && (
                         <span className="text-[10px] text-amber-400 font-semibold">
-                          Lớp được chọn: {examInfo.allowedClasses.join(', ')}
+                          Lớp cho phép: {examInfo.allowedClasses.join(', ')}
                         </span>
                       )}
                     </label>
                     <input
                       type="text"
+                      list="exam-allowed-classes-list"
                       required={loginMode === 'MANUAL'}
                       placeholder="VD: 10A1"
                       value={studentClass}
@@ -582,6 +677,18 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
                           : 'border-slate-700 focus:ring-teal-500'
                       }`}
                     />
+                    <datalist id="exam-allowed-classes-list">
+                      {examInfo?.allowedClasses && examInfo.allowedClasses.length > 0
+                        ? examInfo.allowedClasses.map((cls: string) => (
+                            <option key={cls} value={cls} />
+                          ))
+                        : Array.from(
+                            new Set([
+                              ...systemClasses.map((c) => c.name),
+                              ...systemStudents.map((s) => s.className),
+                            ])
+                          ).map((clsName) => <option key={clsName} value={clsName} />)}
+                    </datalist>
                   </div>
 
                   <div className="space-y-1.5">
