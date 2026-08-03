@@ -450,21 +450,24 @@ export class ClassRepository {
 
   static deleteClass(id: string): boolean {
     let classes = readJsonFile<ClassItem[]>(CLASSES_FILE, sampleInitialClasses);
-    const initialLen = classes.length;
-    const targetClass = classes.find((c) => c.id === id);
-    classes = classes.filter((c) => c.id !== id);
-    if (classes.length !== initialLen) {
-      writeJsonFile(CLASSES_FILE, classes);
-      if (targetClass) {
-        let students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
-        students = students.filter(
-          (s) => s.classId !== id && s.className.trim().toLowerCase() !== targetClass.name.trim().toLowerCase()
-        );
-        writeJsonFile(STUDENTS_FILE, students);
-      }
-      return true;
-    }
-    return false;
+    const targetClass = classes.find((c) => c.id === id || c.name.trim().toLowerCase() === id.trim().toLowerCase());
+    const targetName = targetClass ? targetClass.name.trim().toLowerCase() : id.trim().toLowerCase();
+    const targetId = id.trim().toLowerCase();
+
+    classes = classes.filter((c) => c.id !== id && c.name.trim().toLowerCase() !== targetName);
+    writeJsonFile(CLASSES_FILE, classes);
+
+    let students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
+    students = students.filter(
+      (s) =>
+        s.classId !== id &&
+        s.classId !== targetClass?.id &&
+        (s.className || '').trim().toLowerCase() !== targetName &&
+        (s.className || '').trim().toLowerCase() !== targetId
+    );
+    writeJsonFile(STUDENTS_FILE, students);
+
+    return true;
   }
 
   static getStudents(classIdOrName?: string, userId?: string): StudentItem[] {
