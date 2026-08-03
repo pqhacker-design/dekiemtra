@@ -1,4 +1,5 @@
 import { AppSettings, ExamPackage, QuestionBankItem } from '../types';
+import { UserDataSync } from './userDataSync';
 
 const STORAGE_KEYS = {
   SETTINGS: 'aitest_settings_v1',
@@ -17,10 +18,30 @@ export const defaultSettings: AppSettings = {
 };
 
 export class StorageEngine {
+  private static currentUserId: string | null = null;
+
+  static setCurrentUserId(userId: string | null) {
+    this.currentUserId = userId;
+    UserDataSync.setActiveUserId(userId);
+  }
+
+  static getCurrentUserId(): string | null {
+    return this.currentUserId;
+  }
+
+  private static getKey(baseKey: string): string {
+    if (this.currentUserId) {
+      const cleanId = this.currentUserId.replace(/[^a-zA-Z0-9_]/g, '_');
+      return `${baseKey}_${cleanId}`;
+    }
+    return baseKey;
+  }
+
   // Settings
   static getSettings(): AppSettings {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      const key = this.getKey(STORAGE_KEYS.SETTINGS);
+      const data = localStorage.getItem(key);
       if (!data) return defaultSettings;
       const parsed = JSON.parse(data);
       if (parsed.defaultSchoolName === 'Trường THPT Nguyễn Trãi' || parsed.defaultSchoolName === 'THPT Nguyễn Trãi') {
@@ -35,7 +56,12 @@ export class StorageEngine {
 
   static saveSettings(settings: AppSettings): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+      const key = this.getKey(STORAGE_KEYS.SETTINGS);
+      localStorage.setItem(key, JSON.stringify(settings));
+
+      if (this.currentUserId) {
+        UserDataSync.saveUserData(this.currentUserId, { settings });
+      }
     } catch (e) {
       console.error('Lỗi lưu settings:', e);
     }
@@ -44,7 +70,8 @@ export class StorageEngine {
   // Exam History
   static getExamHistory(): ExamPackage[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.EXAM_HISTORY);
+      const key = this.getKey(STORAGE_KEYS.EXAM_HISTORY);
+      const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : [];
     } catch (e) {
       console.error('Lỗi đọc lịch sử đề thi:', e);
@@ -56,7 +83,12 @@ export class StorageEngine {
     try {
       const history = this.getExamHistory();
       const updated = [examPackage, ...history.filter((e) => e.id !== examPackage.id)];
-      localStorage.setItem(STORAGE_KEYS.EXAM_HISTORY, JSON.stringify(updated));
+      const key = this.getKey(STORAGE_KEYS.EXAM_HISTORY);
+      localStorage.setItem(key, JSON.stringify(updated));
+
+      if (this.currentUserId) {
+        UserDataSync.saveUserData(this.currentUserId, { examHistory: updated });
+      }
     } catch (e) {
       console.error('Lỗi lưu gói đề thi:', e);
     }
@@ -66,7 +98,12 @@ export class StorageEngine {
     try {
       const history = this.getExamHistory();
       const updated = history.filter((e) => e.id !== id);
-      localStorage.setItem(STORAGE_KEYS.EXAM_HISTORY, JSON.stringify(updated));
+      const key = this.getKey(STORAGE_KEYS.EXAM_HISTORY);
+      localStorage.setItem(key, JSON.stringify(updated));
+
+      if (this.currentUserId) {
+        UserDataSync.saveUserData(this.currentUserId, { examHistory: updated });
+      }
     } catch (e) {
       console.error('Lỗi xóa gói đề thi:', e);
     }
@@ -75,7 +112,8 @@ export class StorageEngine {
   // Question Bank
   static getQuestionBank(): QuestionBankItem[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.QUESTION_BANK);
+      const key = this.getKey(STORAGE_KEYS.QUESTION_BANK);
+      const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : sampleQuestionBank;
     } catch (e) {
       console.error('Lỗi đọc ngân hàng câu hỏi:', e);
@@ -85,7 +123,12 @@ export class StorageEngine {
 
   static saveQuestionBank(questions: QuestionBankItem[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.QUESTION_BANK, JSON.stringify(questions));
+      const key = this.getKey(STORAGE_KEYS.QUESTION_BANK);
+      localStorage.setItem(key, JSON.stringify(questions));
+
+      if (this.currentUserId) {
+        UserDataSync.saveUserData(this.currentUserId, { questionBank: questions });
+      }
     } catch (e) {
       console.error('Lỗi lưu ngân hàng câu hỏi:', e);
     }
@@ -96,7 +139,8 @@ export class StorageEngine {
       const bank = this.getQuestionBank();
       const existingIds = new Set(bank.map((q) => q.id));
       const newItems = questions.filter((q) => !existingIds.has(q.id));
-      this.saveQuestionBank([...newItems, ...bank]);
+      const updated = [...newItems, ...bank];
+      this.saveQuestionBank(updated);
     } catch (e) {
       console.error('Lỗi lưu câu hỏi vào ngân hàng:', e);
     }
@@ -114,8 +158,17 @@ export class StorageEngine {
 
   static clearAllData(): void {
     try {
-      localStorage.removeItem(STORAGE_KEYS.EXAM_HISTORY);
-      localStorage.removeItem(STORAGE_KEYS.QUESTION_BANK);
+      const keyHistory = this.getKey(STORAGE_KEYS.EXAM_HISTORY);
+      const keyBank = this.getKey(STORAGE_KEYS.QUESTION_BANK);
+      localStorage.removeItem(keyHistory);
+      localStorage.removeItem(keyBank);
+
+      if (this.currentUserId) {
+        UserDataSync.saveUserData(this.currentUserId, {
+          examHistory: [],
+          questionBank: sampleQuestionBank,
+        });
+      }
     } catch (e) {
       console.error('Lỗi xóa dữ liệu storage:', e);
     }
