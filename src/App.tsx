@@ -17,6 +17,7 @@ import { StudentExamView } from './components/StudentExamView';
 import { ClassManagementView } from './components/ClassManagementView';
 import { PublishOnlineModal } from './components/PublishOnlineModal';
 import { ShareExamModal } from './components/ShareExamModal';
+import { ApiKeyInputModal, QuotaExceededModal, NotificationModal } from './components/ApiModals';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { useAuth } from './auth/useAuth';
 import { UserManagement } from './pages/UserManagement';
@@ -117,9 +118,17 @@ export default function App() {
     }
   }, []);
 
-  // Generation status
+  // Generation status & Modals
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
+  const [notificationModal, setNotificationModal] = useState<{ isOpen: boolean; title: string; message: string }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+  const [pendingMetadata, setPendingMetadata] = useState<ExamMetadata | null>(null);
 
   // Handle dark mode toggle on root html element
   useEffect(() => {
@@ -210,7 +219,21 @@ export default function App() {
       // Automatically navigate to Exam Paper view
       setActiveTab('multicode');
     } catch (err: any) {
-      alert('Lỗi khi sinh đề thi với AI: ' + (err.message || 'Không thể kết nối dịch vụ Gemini'));
+      const msg = String(err?.message || err);
+      if (msg.includes('[NO_API_KEY]') || msg.includes('Chưa cấu hình') || msg.includes('[INVALID_API_KEY]')) {
+        setPendingMetadata(metadata);
+        setIsApiKeyModalOpen(true);
+      } else if (msg.includes('[QUOTA_EXHAUSTED]') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('Quota exceeded')) {
+        setPendingMetadata(metadata);
+        setIsQuotaModalOpen(true);
+      } else {
+        setNotificationModal({
+          isOpen: true,
+          title: 'Lỗi Sinh Đề Thi Với AI',
+          message: msg || 'Không thể kết nối dịch vụ Gemini AI.',
+        });
+      }
+      throw err;
     } finally {
       setIsGenerating(false);
       setProgressMessage('');
@@ -782,6 +805,42 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Modals for API Key & Quota */}
+      <ApiKeyInputModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        onSave={(newKey) => {
+          setIsApiKeyModalOpen(false);
+          const updatedSettings = { ...settings, customApiKey: newKey };
+          setSettings(updatedSettings);
+          if (pendingMetadata) {
+            handleGenerateExam(pendingMetadata).catch(() => {});
+          }
+        }}
+      />
+
+      <QuotaExceededModal
+        isOpen={isQuotaModalOpen}
+        onClose={() => setIsQuotaModalOpen(false)}
+        onSaveNewKeyAndRetry={(newKey) => {
+          setIsQuotaModalOpen(false);
+          if (newKey) {
+            const updatedSettings = { ...settings, customApiKey: newKey };
+            setSettings(updatedSettings);
+          }
+          if (pendingMetadata) {
+            handleGenerateExam(pendingMetadata).catch(() => {});
+          }
+        }}
+      />
+
+      <NotificationModal
+        isOpen={notificationModal.isOpen}
+        title={notificationModal.title}
+        message={notificationModal.message}
+        onClose={() => setNotificationModal({ isOpen: false, title: '', message: '' })}
+      />
     </div>
   );
 }
