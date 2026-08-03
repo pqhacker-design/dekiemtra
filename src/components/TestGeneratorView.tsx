@@ -18,7 +18,9 @@ import {
   Trash2,
   UploadCloud,
   X,
+  Key,
 } from 'lucide-react';
+import { ApiKeyInputModal, QuotaExceededModal } from './ApiModals';
 import {
   AppSettings,
   CognitiveRatio,
@@ -43,6 +45,9 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
   isGenerating,
   progressMessage,
 }) => {
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [pendingMetadata, setPendingMetadata] = useState<ExamMetadata | null>(null);
   // 1. Thông tin hành chính
   const [schoolName, setSchoolName] = useState(settings.defaultSchoolName || 'Trường THCS Bình San');
   const [departmentName, setDepartmentName] = useState(settings.defaultDepartmentName || 'Sở Giáo dục và Đào tạo');
@@ -347,7 +352,27 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     setErrorMsg('');
 
     if (!settings.customApiKey || !settings.customApiKey.trim()) {
-      setErrorMsg('Bắt buộc người dùng phải nhập Gemini API Key cá nhân! Vui lòng mở tab "Cài Đặt Hệ Thống" (biểu tượng bánh răng) để dán API Key của bạn trước khi sinh đề.');
+      setPendingMetadata({
+        schoolName,
+        departmentName,
+        subject,
+        grade,
+        className,
+        semester,
+        schoolYear,
+        examTitle,
+        chapterTitle,
+        durationMinutes,
+        totalPoints,
+        curriculum,
+        examMode,
+        questionCounts,
+        cognitiveRatio,
+        codeCount,
+        referenceContext,
+        referenceImages,
+      });
+      setShowApiKeyModal(true);
       return;
     }
 
@@ -396,9 +421,17 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     };
 
     try {
+      setPendingMetadata(metadata);
       await onGenerate(metadata);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Đã xảy ra lỗi khi tạo đề kiểm tra.');
+      const msg = String(err?.message || err);
+      if (msg.includes('[NO_API_KEY]') || msg.includes('Chưa cấu hình') || msg.includes('[INVALID_API_KEY]')) {
+        setShowApiKeyModal(true);
+      } else if (msg.includes('[QUOTA_EXHAUSTED]') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('Quota exceeded')) {
+        setShowQuotaModal(true);
+      } else {
+        setErrorMsg(msg || 'Đã xảy ra lỗi khi tạo đề kiểm tra.');
+      }
     }
   };
 
@@ -424,11 +457,21 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       </div>
 
       {!settings.customApiKey && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-400 dark:border-amber-700 rounded-2xl text-amber-900 dark:text-amber-200 flex items-start space-x-3 text-sm shadow-sm">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1 font-medium">
-            <span className="font-bold">⚠️ Chưa cấu hình API Key:</span> Ứng dụng yêu cầu bắt buộc nhập Gemini API Key cá nhân. Vui lòng mở tab <span className="font-extrabold text-teal-700 dark:text-teal-300">"Cài Đặt Hệ Thống"</span> (biểu tượng bánh răng) để dán khóa API của bạn trước khi sinh đề.
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-400 dark:border-amber-700 rounded-2xl text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm shadow-sm">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="font-medium">
+              <span className="font-bold">⚠️ Chưa cấu hình API Key:</span> Ứng dụng yêu cầu bắt buộc nhập Gemini API Key cá nhân để khởi tạo đề thi với AI.
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowApiKeyModal(true)}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs rounded-xl shadow-md transition-all shrink-0 flex items-center justify-center space-x-1.5 cursor-pointer"
+          >
+            <Key className="w-4 h-4" />
+            <span>Nhập API Key Ngay</span>
+          </button>
         </div>
       )}
 
@@ -1323,6 +1366,48 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           </button>
         </div>
       </form>
+
+      {/* API Key Modal */}
+      <ApiKeyInputModal
+        isOpen={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+        onSave={async () => {
+          setShowApiKeyModal(false);
+          if (pendingMetadata) {
+            try {
+              await onGenerate(pendingMetadata);
+            } catch (err: any) {
+              const msg = String(err?.message || err);
+              if (msg.includes('[QUOTA_EXHAUSTED]') || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+                setShowQuotaModal(true);
+              } else if (!msg.includes('[NO_API_KEY]')) {
+                setErrorMsg(msg);
+              }
+            }
+          }
+        }}
+      />
+
+      {/* Quota Exceeded Modal */}
+      <QuotaExceededModal
+        isOpen={showQuotaModal}
+        onClose={() => setShowQuotaModal(false)}
+        onSaveNewKeyAndRetry={async () => {
+          setShowQuotaModal(false);
+          if (pendingMetadata) {
+            try {
+              await onGenerate(pendingMetadata);
+            } catch (err: any) {
+              const msg = String(err?.message || err);
+              if (msg.includes('[QUOTA_EXHAUSTED]') || msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+                setShowQuotaModal(true);
+              } else {
+                setErrorMsg(msg);
+              }
+            }
+          }
+        }}
+      />
     </div>
   );
 };
