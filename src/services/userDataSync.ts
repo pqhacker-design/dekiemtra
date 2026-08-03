@@ -9,6 +9,7 @@ export interface UserDataPayload {
   questionBank: QuestionBankItem[];
   classes?: any[];
   students?: any[];
+  onlineExams?: any[];
   updatedAt?: string;
 }
 
@@ -34,6 +35,9 @@ export class UserDataSync {
       SETTINGS: `aitest_settings_${cleanId}`,
       EXAM_HISTORY: `aitest_exam_history_${cleanId}`,
       QUESTION_BANK: `aitest_question_bank_${cleanId}`,
+      CLASSES: `aitest_online_classes_store_${cleanId}`,
+      STUDENTS: `aitest_online_students_store_${cleanId}`,
+      ONLINE_EXAMS: `aitest_online_exams_store_${cleanId}`,
     };
   }
 
@@ -45,6 +49,9 @@ export class UserDataSync {
     let settings = defaultSettings;
     let examHistory: ExamPackage[] = [];
     let questionBank: QuestionBankItem[] = [];
+    let classes: any[] = [];
+    let students: any[] = [];
+    let onlineExams: any[] = [];
 
     try {
       const rawSettings = localStorage.getItem(keys.SETTINGS);
@@ -55,11 +62,20 @@ export class UserDataSync {
 
       const rawBank = localStorage.getItem(keys.QUESTION_BANK);
       if (rawBank) questionBank = JSON.parse(rawBank);
+
+      const rawClasses = localStorage.getItem(keys.CLASSES);
+      if (rawClasses) classes = JSON.parse(rawClasses);
+
+      const rawStudents = localStorage.getItem(keys.STUDENTS);
+      if (rawStudents) students = JSON.parse(rawStudents);
+
+      const rawOnlineExams = localStorage.getItem(keys.ONLINE_EXAMS);
+      if (rawOnlineExams) onlineExams = JSON.parse(rawOnlineExams);
     } catch (err) {
       console.warn(`Lỗi đọc LocalStorage cho user ${userId}:`, err);
     }
 
-    return { settings, examHistory, questionBank };
+    return { settings, examHistory, questionBank, classes, students, onlineExams };
   }
 
   /**
@@ -77,6 +93,15 @@ export class UserDataSync {
       if (data.questionBank) {
         localStorage.setItem(keys.QUESTION_BANK, JSON.stringify(data.questionBank));
       }
+      if (data.classes) {
+        localStorage.setItem(keys.CLASSES, JSON.stringify(data.classes));
+      }
+      if (data.students) {
+        localStorage.setItem(keys.STUDENTS, JSON.stringify(data.students));
+      }
+      if (data.onlineExams) {
+        localStorage.setItem(keys.ONLINE_EXAMS, JSON.stringify(data.onlineExams));
+      }
     } catch (err) {
       console.error(`Lỗi ghi LocalStorage cho user ${userId}:`, err);
     }
@@ -87,7 +112,7 @@ export class UserDataSync {
    */
   static async loadUserData(userId: string): Promise<UserDataPayload> {
     if (!userId) {
-      return { settings: defaultSettings, examHistory: [], questionBank: sampleQuestionBank };
+      return { settings: defaultSettings, examHistory: [], questionBank: sampleQuestionBank, classes: [], students: [], onlineExams: [] };
     }
 
     const docRef = doc(db, USER_DATA_COLLECTION, userId);
@@ -100,13 +125,17 @@ export class UserDataSync {
         const settings = { ...defaultSettings, ...(remoteData.settings || {}) };
         const examHistory = Array.isArray(remoteData.examHistory) ? remoteData.examHistory : [];
         const questionBank = Array.isArray(remoteData.questionBank) ? remoteData.questionBank : sampleQuestionBank;
+        const classes = Array.isArray(remoteData.classes) ? remoteData.classes : [];
+        const students = Array.isArray(remoteData.students) ? remoteData.students : [];
+        const onlineExams = Array.isArray(remoteData.onlineExams) ? remoteData.onlineExams : [];
 
         const mergedPayload: UserDataPayload = {
           settings,
           examHistory,
           questionBank,
-          classes: remoteData.classes || [],
-          students: remoteData.students || [],
+          classes,
+          students,
+          onlineExams,
           updatedAt: remoteData.updatedAt,
         };
 
@@ -128,6 +157,9 @@ export class UserDataSync {
       settings: local.settings || defaultSettings,
       examHistory: local.examHistory || [],
       questionBank: local.questionBank && local.questionBank.length > 0 ? local.questionBank : sampleQuestionBank,
+      classes: local.classes || [],
+      students: local.students || [],
+      onlineExams: local.onlineExams || [],
       updatedAt: new Date().toISOString(),
     };
 
