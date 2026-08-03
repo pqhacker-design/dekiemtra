@@ -318,7 +318,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
 
     if (type === 'delete_class') {
       try {
-        const res = await OnlineExamService.deleteClass(payload.classId);
+        const res = await OnlineExamService.deleteClass(payload.classId, payload.className);
         if (res.success) {
           const remaining = classes.filter((c) => c.id !== payload.classId);
           setClasses(remaining);
@@ -326,7 +326,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
             setSelectedClassId(remaining[0]?.id || null);
           }
           await loadClassesAndStudents();
-          showToast('success', `Đã xóa thành công lớp ${payload.className}.`);
+          showToast('success', `Đã xóa thành công lớp ${payload.className} cùng toàn bộ danh sách học sinh.`);
         }
       } catch (err: any) {
         showToast('error', 'Lỗi khi xóa lớp: ' + err.message);
