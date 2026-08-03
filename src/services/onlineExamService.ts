@@ -405,38 +405,42 @@ export class OnlineExamService {
       };
     });
 
-    let firestoreExams: OnlineExamItem[] = [];
+    let firestoreExams: (OnlineExamItem & { createdBy?: string })[] = [];
+    const userId = this.getActiveUserId();
     try {
       const colRef = collection(db, 'published_exams');
       const snap = await getDocs(colRef);
       snap.forEach((d) => {
         const e = d.data() as any;
         if (e && e.code) {
-          const pkg = e.examPackage || {};
-          const qCount = pkg.exams?.[0]?.questions?.length || 10;
-          firestoreExams.push({
-            id: e.id || 'exam_fs_' + e.code,
-            code: e.code,
-            title: e.title || 'Đề kiểm tra',
-            subject: e.subject || 'Môn học',
-            grade: e.grade || 'Khối 10',
-            duration: e.duration || 45,
-            totalPoints: e.totalPoints || 10.0,
-            createdDate: e.createdDate || new Date().toISOString(),
-            status: e.status || 'active',
-            allowedClasses: e.allowedClasses || [],
-            questionCount: qCount,
-            submissionCount: 0,
-            activeSessionCount: 0,
-            antiCheat: e.antiCheat || {
-              disallowPrevious: false,
-              shuffleQuestions: true,
-              shuffleOptions: true,
-              autoSubmitOnTimeout: true,
-              warnTabSwitch: true,
-              tabSwitchLimit: 3,
-            },
-          });
+          if (userId === 'admin' || !e.createdBy || e.createdBy === userId) {
+            const pkg = e.examPackage || {};
+            const qCount = pkg.exams?.[0]?.questions?.length || 10;
+            firestoreExams.push({
+              id: e.id || 'exam_fs_' + e.code,
+              code: e.code,
+              title: e.title || 'Đề kiểm tra',
+              subject: e.subject || 'Môn học',
+              grade: e.grade || 'Khối 10',
+              duration: e.duration || 45,
+              totalPoints: e.totalPoints || 10.0,
+              createdDate: e.createdDate || new Date().toISOString(),
+              status: e.status || 'active',
+              allowedClasses: e.allowedClasses || [],
+              questionCount: qCount,
+              submissionCount: 0,
+              activeSessionCount: 0,
+              antiCheat: e.antiCheat || {
+                disallowPrevious: false,
+                shuffleQuestions: true,
+                shuffleOptions: true,
+                autoSubmitOnTimeout: true,
+                warnTabSwitch: true,
+                tabSwitchLimit: 3,
+              },
+              createdBy: e.createdBy,
+            });
+          }
         }
       });
     } catch (e) {
@@ -444,11 +448,13 @@ export class OnlineExamService {
     }
 
     const map = new Map<string, OnlineExamItem>();
-    [...apiExams, ...firestoreExams, ...localItems].forEach((item) => {
+    [...apiExams, ...firestoreExams, ...localItems].forEach((item: any) => {
       if (item && item.code) {
-        const key = item.code.trim().toUpperCase();
-        if (!map.has(key)) {
-          map.set(key, item);
+        if (userId === 'admin' || !item.createdBy || item.createdBy === userId) {
+          const key = item.code.trim().toUpperCase();
+          if (!map.has(key)) {
+            map.set(key, item);
+          }
         }
       }
     });
@@ -1027,10 +1033,16 @@ export class OnlineExamService {
 
     const firestoreResults = await this.getStudentResultsFromFirestore(codeUpper);
 
+    const userId = this.getActiveUserId();
+    const teacherExams = await this.getOnlineExams();
+    const teacherCodes = new Set((teacherExams.exams || []).map((e: any) => (e.code || '').toUpperCase()));
+
     const map = new Map<string, StudentResultItem>();
     [...apiResults, ...firestoreResults, ...localResults].forEach((item) => {
       if (item && item.id) {
-        map.set(item.id, item);
+        if (userId === 'admin' || teacherCodes.has((item.examCode || '').toUpperCase())) {
+          map.set(item.id, item);
+        }
       }
     });
 
@@ -1061,10 +1073,12 @@ export class OnlineExamService {
     if (!cls || !cls.id) return;
     try {
       const docRef = doc(db, 'system_classes', cls.id);
+      const userId = cls.createdBy || this.getActiveUserId();
       await setDoc(
         docRef,
         {
           ...cls,
+          createdBy: userId,
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -1079,10 +1093,12 @@ export class OnlineExamService {
     try {
       const docRef = doc(db, 'system_students', student.id);
       const cleanSbd = student.sbd ? student.sbd.trim().toUpperCase() : '';
+      const userId = student.createdBy || this.getActiveUserId();
       await setDoc(
         docRef,
         {
           ...student,
+          createdBy: userId,
           sbd: cleanSbd,
           sbdOriginal: student.sbd ? student.sbd.trim() : '',
           updatedAt: new Date().toISOString(),
@@ -1095,6 +1111,7 @@ export class OnlineExamService {
   }
 
   private static async getSystemClassesFromFirestore(): Promise<any[]> {
+    const userId = this.getActiveUserId();
     try {
       const colRef = collection(db, 'system_classes');
       const snap = await getDocs(colRef);
@@ -1102,7 +1119,9 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const data = d.data();
         if (data && data.id) {
-          items.push(data);
+          if (userId === 'admin' || !data.createdBy || data.createdBy === userId) {
+            items.push(data);
+          }
         }
       });
       return items;
@@ -1113,6 +1132,7 @@ export class OnlineExamService {
   }
 
   private static async getSystemStudentsFromFirestore(): Promise<any[]> {
+    const userId = this.getActiveUserId();
     try {
       const colRef = collection(db, 'system_students');
       const snap = await getDocs(colRef);
@@ -1120,7 +1140,9 @@ export class OnlineExamService {
       snap.forEach((d) => {
         const data = d.data();
         if (data && data.id) {
-          items.push(data);
+          if (userId === 'admin' || !data.createdBy || data.createdBy === userId) {
+            items.push(data);
+          }
         }
       });
       return items;
@@ -1133,6 +1155,7 @@ export class OnlineExamService {
   // 13. Classes Management
   static async getClasses() {
     let apiClasses: any[] = [];
+    const userId = this.getActiveUserId();
     try {
       const res = await this.request<{ success: boolean; classes: any[] }>('/api/classes');
       if (res.success && Array.isArray(res.classes)) {
@@ -1148,7 +1171,9 @@ export class OnlineExamService {
     const map = new Map<string, any>();
     [...apiClasses, ...firestoreClasses, ...localClasses].forEach((cls) => {
       if (cls && cls.id) {
-        map.set(cls.id, cls);
+        if (userId === 'admin' || !cls.createdBy || cls.createdBy === userId) {
+          map.set(cls.id, cls);
+        }
       }
     });
 
@@ -1227,6 +1252,7 @@ export class OnlineExamService {
   // 14. Students Management
   static async getStudents(classId?: string) {
     let apiStudents: any[] = [];
+    const userId = this.getActiveUserId();
     try {
       const queryStr = classId ? `?classId=${encodeURIComponent(classId)}` : '';
       const res = await this.request<{ success: boolean; students: any[] }>(`/api/students${queryStr}`);
@@ -1243,7 +1269,9 @@ export class OnlineExamService {
     const map = new Map<string, any>();
     [...apiStudents, ...firestoreStudents, ...localStudents].forEach((s) => {
       if (s && s.id) {
-        map.set(s.id, s);
+        if (userId === 'admin' || !s.createdBy || s.createdBy === userId) {
+          map.set(s.id, s);
+        }
       }
     });
 
@@ -1267,7 +1295,12 @@ export class OnlineExamService {
   }
 
   static async saveStudents(students: any | any[]) {
-    const list = Array.isArray(students) ? students : [students];
+    const userId = this.getActiveUserId();
+    const rawList = Array.isArray(students) ? students : [students];
+    const list = rawList.map((s) => ({
+      ...s,
+      createdBy: s.createdBy || userId,
+    }));
     let savedList: any[] = [];
 
     try {
