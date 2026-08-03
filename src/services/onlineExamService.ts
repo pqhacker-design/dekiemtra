@@ -1295,7 +1295,7 @@ export class OnlineExamService {
     return { success: true, class: savedClass };
   }
 
-  static async deleteClass(id: string) {
+  static async deleteClass(id: string, className?: string) {
     try {
       await this.request<{ success: boolean }>(`/api/classes/${encodeURIComponent(id)}`, {
         method: 'DELETE',
@@ -1304,14 +1304,58 @@ export class OnlineExamService {
       // ignore
     }
 
-    const classes = this.getLocalClasses().filter((c) => c.id !== id);
-    this.saveLocalClasses(classes);
+    const localClasses = this.getLocalClasses();
+    const targetClass = localClasses.find((c) => c.id === id || c.name === id || (className && c.name === className));
+    const targetName = className || targetClass?.name || id;
+    const normClassName = targetName.trim().toLowerCase();
+    const normClassId = id.trim().toLowerCase();
 
+    // 1. Delete class from local classes
+    const remainingClasses = localClasses.filter((c) => c.id !== id && c.name !== targetName);
+    this.saveLocalClasses(remainingClasses);
+
+    // 2. Delete students belonging to this class from local students
+    const localStudents = this.getLocalStudents();
+    const remainingStudents = localStudents.filter(
+      (s) =>
+        s.classId !== id &&
+        s.classId !== targetClass?.id &&
+        (s.className || '').trim().toLowerCase() !== normClassName &&
+        (s.className || '').trim().toLowerCase() !== normClassId
+    );
+    this.saveLocalStudents(remainingStudents);
+
+    // 3. Delete class doc from Firestore
     try {
       const docRef = doc(db, 'system_classes', id);
       await deleteDoc(docRef);
     } catch (e) {
       console.warn('Lỗi xóa system_classes từ Firestore:', e);
+    }
+
+    // 4. Delete students belonging to this class from Firestore
+    try {
+      const colRef = collection(db, 'system_students');
+      const snap = await getDocs(colRef);
+      const deletePromises: Promise<void>[] = [];
+      snap.forEach((d) => {
+        const s = d.data();
+        if (s) {
+          const sClassId = (s.classId || '').trim().toLowerCase();
+          const sClassName = (s.className || '').trim().toLowerCase();
+          if (
+            sClassId === normClassId ||
+            (targetClass?.id && sClassId === targetClass.id.trim().toLowerCase()) ||
+            sClassName === normClassName ||
+            sClassName === normClassId
+          ) {
+            deletePromises.push(deleteDoc(d.ref));
+          }
+        }
+      });
+      await Promise.all(deletePromises);
+    } catch (e) {
+      console.warn('Lỗi xóa system_students thuộc lớp từ Firestore:', e);
     }
 
     return { success: true };
