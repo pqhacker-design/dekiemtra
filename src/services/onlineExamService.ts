@@ -1,5 +1,8 @@
 // Frontend API Client Service for Online Exam System (Hybrid Backend + LocalStorage Fallback)
 
+import { UserDataSync } from './userDataSync';
+import { StorageEngine } from './storageEngine';
+
 export interface OnlineExamItem {
   id: string;
   code: string;
@@ -43,20 +46,46 @@ export interface StudentResultItem {
   activityLogs: { timestamp: string; event: string; details?: string }[];
 }
 
-const STORAGE_KEYS = {
-  EXAMS: 'aitest_online_exams_store_v1',
-  SESSIONS: 'aitest_online_sessions_store_v1',
-  CLASSES: 'aitest_online_classes_store_v1',
-  STUDENTS: 'aitest_online_students_store_v1',
-};
-
 export class OnlineExamService {
+  private static getActiveUserId(): string {
+    return UserDataSync.getActiveUserId() || StorageEngine.getCurrentUserId() || 'guest';
+  }
+
+  private static getStorageKeys() {
+    const userId = this.getActiveUserId();
+    const cleanId = userId ? userId.replace(/[^a-zA-Z0-9_]/g, '_') : 'guest';
+    return {
+      EXAMS: `aitest_online_exams_store_${cleanId}`,
+      SESSIONS: `aitest_online_sessions_store_${cleanId}`,
+      CLASSES: `aitest_online_classes_store_${cleanId}`,
+      STUDENTS: `aitest_online_students_store_${cleanId}`,
+    };
+  }
+
+  private static syncToFirestore(): void {
+    const userId = this.getActiveUserId();
+    if (userId && userId !== 'guest') {
+      UserDataSync.saveUserData(userId, {
+        classes: this.getLocalClasses(),
+        students: this.getLocalStudents(),
+        onlineExams: this.getLocalExams(),
+      });
+    }
+  }
+
   private static async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const userId = this.getActiveUserId();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((options?.headers as any) || {}),
+    };
+    if (userId && userId !== 'guest') {
+      headers['x-user-id'] = userId;
+    }
+
     const res = await fetch(endpoint, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
       ...options,
+      headers,
     });
 
     const text = await res.text();
@@ -90,7 +119,8 @@ export class OnlineExamService {
 
   private static getLocalExams(): any[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.EXAMS);
+      const keys = this.getStorageKeys();
+      const data = localStorage.getItem(keys.EXAMS);
       if (!data) return [];
       return JSON.parse(data);
     } catch {
@@ -100,7 +130,9 @@ export class OnlineExamService {
 
   private static saveLocalExams(exams: any[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.EXAMS, JSON.stringify(exams));
+      const keys = this.getStorageKeys();
+      localStorage.setItem(keys.EXAMS, JSON.stringify(exams));
+      this.syncToFirestore();
     } catch (e) {
       console.error('Lỗi lưu exams local:', e);
     }
@@ -108,7 +140,8 @@ export class OnlineExamService {
 
   private static getLocalSessions(): any[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.SESSIONS);
+      const keys = this.getStorageKeys();
+      const data = localStorage.getItem(keys.SESSIONS);
       return data ? JSON.parse(data) : [];
     } catch {
       return [];
@@ -117,7 +150,8 @@ export class OnlineExamService {
 
   private static saveLocalSessions(sessions: any[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+      const keys = this.getStorageKeys();
+      localStorage.setItem(keys.SESSIONS, JSON.stringify(sessions));
     } catch (e) {
       console.error('Lỗi lưu sessions local:', e);
     }
@@ -125,7 +159,8 @@ export class OnlineExamService {
 
   private static getLocalClasses(): any[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.CLASSES);
+      const keys = this.getStorageKeys();
+      const data = localStorage.getItem(keys.CLASSES);
       return data ? JSON.parse(data) : [];
     } catch {
       return [];
@@ -134,7 +169,9 @@ export class OnlineExamService {
 
   private static saveLocalClasses(classes: any[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(classes));
+      const keys = this.getStorageKeys();
+      localStorage.setItem(keys.CLASSES, JSON.stringify(classes));
+      this.syncToFirestore();
     } catch (e) {
       console.error('Lỗi lưu classes local:', e);
     }
@@ -142,7 +179,8 @@ export class OnlineExamService {
 
   private static getLocalStudents(): any[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      const keys = this.getStorageKeys();
+      const data = localStorage.getItem(keys.STUDENTS);
       return data ? JSON.parse(data) : [];
     } catch {
       return [];
@@ -151,7 +189,9 @@ export class OnlineExamService {
 
   private static saveLocalStudents(students: any[]): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+      const keys = this.getStorageKeys();
+      localStorage.setItem(keys.STUDENTS, JSON.stringify(students));
+      this.syncToFirestore();
     } catch (e) {
       console.error('Lỗi lưu students local:', e);
     }
