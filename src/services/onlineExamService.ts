@@ -1455,18 +1455,51 @@ export class OnlineExamService {
       ...s,
       createdBy: s.createdBy || userId,
     }));
+
+    // 1. Check duplicate SBDs within batch
+    const batchSbdSet = new Set<string>();
+    for (const st of list) {
+      if (st.sbd && st.sbd.trim()) {
+        const norm = st.sbd.trim().toUpperCase();
+        if (batchSbdSet.has(norm)) {
+          throw new Error(`SBD '${st.sbd}' bị trùng lặp ngay trong danh sách gửi lên! Mỗi học sinh phải có một SBD duy nhất.`);
+        }
+        batchSbdSet.add(norm);
+      }
+    }
+
+    // 2. Check global uniqueness across all system students
+    const systemStudentsRes = await this.getStudents(undefined, true);
+    const allSystemStudents = systemStudentsRes.students || [];
+
+    for (const st of list) {
+      if (st.sbd && st.sbd.trim()) {
+        const norm = st.sbd.trim().toUpperCase();
+        const conflict = allSystemStudents.find(
+          (s) => s.id !== st.id && s.sbd && s.sbd.trim().toUpperCase() === norm
+        );
+        if (conflict) {
+          throw new Error(
+            `Số báo danh (SBD) '${st.sbd}' đã tồn tại trên hệ thống (thuộc học sinh '${conflict.name}' - Lớp ${conflict.className}). SBD phải là duy nhất giữa các người dùng, vui lòng chọn SBD khác!`
+          );
+        }
+      }
+    }
+
     let savedList: any[] = [];
 
     try {
       const res = await this.request<{ success: boolean; students: any[] }>('/api/students', {
         method: 'POST',
-        body: JSON.stringify(students),
+        body: JSON.stringify(list),
       });
       if (res.success && Array.isArray(res.students)) {
         savedList = res.students;
       }
-    } catch {
-      // ignore
+    } catch (err: any) {
+      if (err && err.message && err.message.includes('Số báo danh')) {
+        throw err;
+      }
     }
 
     if (savedList.length === 0) {
