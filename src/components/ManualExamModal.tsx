@@ -664,7 +664,11 @@ export const ManualExamModal: React.FC<ManualExamModalProps> = ({
                           </div>
 
                           <button
-                            onClick={() => toggleSelect(q.id)}
+                            onClick={() => {
+                              if (window.confirm('Bạn có chắc chắn muốn xóa câu hỏi này khỏi đề thi đang chọn không?')) {
+                                toggleSelect(q.id);
+                              }
+                            }}
                             className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer ml-1"
                             title="Xóa khỏi đề"
                           >
