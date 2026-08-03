@@ -484,19 +484,45 @@ export class ClassRepository {
 
   static saveStudents(newStudents: StudentItem[], userId?: string): StudentItem[] {
     const students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
+
+    // 1. Check duplicate SBDs within the incoming batch
+    const batchSbdSet = new Set<string>();
+    newStudents.forEach((st) => {
+      if (st.sbd && st.sbd.trim()) {
+        const norm = st.sbd.trim().toUpperCase();
+        if (batchSbdSet.has(norm)) {
+          throw new Error(`SBD '${st.sbd}' bị trùng lặp ngay trong danh sách học sinh gửi lên. Vui lòng kiểm tra lại!`);
+        }
+        batchSbdSet.add(norm);
+      }
+    });
+
+    // 2. Validate against existing system students & update/insert
     newStudents.forEach((st) => {
       if (userId && !st.createdBy) {
         st.createdBy = userId;
       }
-      const idx = students.findIndex(
-        (s) => s.id === st.id || (s.sbd && st.sbd && s.sbd.trim().toLowerCase() === st.sbd.trim().toLowerCase())
-      );
+      const normStSbd = st.sbd ? st.sbd.trim().toUpperCase() : '';
+
+      if (normStSbd) {
+        const conflicting = students.find(
+          (s) => s.id !== st.id && s.sbd && s.sbd.trim().toUpperCase() === normStSbd
+        );
+        if (conflicting) {
+          throw new Error(
+            `Số báo danh (SBD) '${st.sbd}' đã tồn tại trên hệ thống (thuộc học sinh '${conflicting.name}' - Lớp ${conflicting.className}). SBD của các tài khoản không được trùng nhau!`
+          );
+        }
+      }
+
+      const idx = students.findIndex((s) => s.id === st.id);
       if (idx >= 0) {
         students[idx] = { ...students[idx], ...st };
       } else {
         students.push(st);
       }
     });
+
     writeJsonFile(STUDENTS_FILE, students);
     return newStudents;
   }
