@@ -35,6 +35,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentItem[]>([]);
+  const [allGlobalStudents, setAllGlobalStudents] = useState<StudentItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -96,6 +97,11 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
       const stRes = await OnlineExamService.getStudents();
       if (stRes.success) {
         setStudents(stRes.students);
+      }
+
+      const globalStRes = await OnlineExamService.getStudents(undefined, true);
+      if (globalStRes.success) {
+        setAllGlobalStudents(globalStRes.students);
       }
     } catch (err) {
       console.error('Lỗi khi tải dữ liệu Lớp & Học sinh:', err);
@@ -169,12 +175,26 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
     });
   };
 
-  // Helper to generate next available SBD for a class
-  const generateNextSbd = (clsName: string, existing: StudentItem[], indexOffset = 1) => {
+  // Helper to generate next available SBD for a class (guaranteed globally unique across all users)
+  const generateNextSbd = (clsName: string, existingInClass: StudentItem[], indexOffset = 1) => {
     const cleanCls = clsName.replace(/\s+/g, '').toUpperCase();
-    const idx = existing.length + indexOffset;
-    const padded = idx < 10 ? `0${idx}` : `${idx}`;
-    return `${cleanCls}${padded}`;
+    const takenSet = new Set(
+      allGlobalStudents
+        .map((s) => (s.sbd ? s.sbd.trim().toUpperCase() : ''))
+        .filter(Boolean)
+    );
+
+    let candidateIdx = existingInClass.length + indexOffset;
+    let candidatePadded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+    let candidateSbd = `${cleanCls}${candidatePadded}`;
+
+    while (takenSet.has(candidateSbd)) {
+      candidateIdx++;
+      candidatePadded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+      candidateSbd = `${cleanCls}${candidatePadded}`;
+    }
+
+    return candidateSbd;
   };
 
   // Handle Save Single Student
@@ -225,6 +245,12 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
     const newStudents: any[] = [];
     const cleanCls = currentClass.name.replace(/\s+/g, '').toUpperCase();
 
+    const takenSet = new Set(
+      allGlobalStudents
+        .map((s) => (s.sbd ? s.sbd.trim().toUpperCase() : ''))
+        .filter(Boolean)
+    );
+
     lines.forEach((line, idx) => {
       const parts = line.split(/[,;\t]/).map((p) => p.trim());
       let sbd = '';
@@ -239,9 +265,18 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
         dob = parts[3] || '';
       } else {
         name = line;
-        const num = classStudents.length + idx + 1;
-        const padded = num < 10 ? `0${num}` : `${num}`;
+        let candidateIdx = classStudents.length + idx + 1;
+        let padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
         sbd = `${cleanCls}${padded}`;
+        while (takenSet.has(sbd)) {
+          candidateIdx++;
+          padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+          sbd = `${cleanCls}${padded}`;
+        }
+      }
+
+      if (sbd) {
+        takenSet.add(sbd);
       }
 
       if (name) {
@@ -359,12 +394,28 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
           ? 'SBD'
           : (customPrefix.trim() || 'HS').toUpperCase();
 
+      const takenSet = new Set(
+        allGlobalStudents
+          .filter((s) => !classStudents.some((cs) => cs.id === s.id))
+          .map((s) => (s.sbd ? s.sbd.trim().toUpperCase() : ''))
+          .filter(Boolean)
+      );
+
       const updatedStudents = classStudents.map((st, idx) => {
-        const num = idx + 1;
-        const padded = num < 10 ? `0${num}` : `${num}`;
+        let candidateIdx = idx + 1;
+        let padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+        let candidateSbd = `${prefix}${padded}`;
+
+        while (takenSet.has(candidateSbd)) {
+          candidateIdx++;
+          padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+          candidateSbd = `${prefix}${padded}`;
+        }
+        takenSet.add(candidateSbd);
+
         return {
           ...st,
-          sbd: `${prefix}${padded}`,
+          sbd: candidateSbd,
         };
       });
 
