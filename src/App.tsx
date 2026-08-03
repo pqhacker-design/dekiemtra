@@ -23,6 +23,7 @@ import { UserManagement } from './pages/UserManagement';
 
 import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, QuestionBankItem, SpecRow } from './types';
 import { StorageEngine } from './services/storageEngine';
+import { UserDataSync } from './services/userDataSync';
 import { GeminiService } from './services/geminiService';
 import { ExportDocx } from './services/exportDocx';
 import { ExportExcel } from './services/exportExcel';
@@ -30,7 +31,9 @@ import { ExportPdf } from './services/exportPdf';
 import { OnlineExamService } from './services/onlineExamService';
 
 export default function App() {
-  const { role, isAdmin } = useAuth();
+  const { user, role, isAdmin } = useAuth();
+  const currentUserId = user?.id || user?.username || null;
+
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -50,6 +53,47 @@ export default function App() {
   const [currentExamPackage, setCurrentExamPackage] = useState<ExamPackage | null>(
     examHistory[0] || null
   );
+
+  // Synchronize user data upon account change / login
+  useEffect(() => {
+    if (currentUserId) {
+      StorageEngine.setCurrentUserId(currentUserId);
+
+      // 1. Instantly load local user cache
+      const localSettings = StorageEngine.getSettings();
+      setSettings(localSettings);
+      const localHist = StorageEngine.getExamHistory();
+      setExamHistory(localHist);
+      const localBank = StorageEngine.getQuestionBank();
+      setQuestionBank(localBank);
+      if (localHist.length > 0) setCurrentExamPackage(localHist[0]);
+
+      // 2. Fetch remote user data from Firestore for cross-device sync
+      UserDataSync.loadUserData(currentUserId).then((data) => {
+        setSettings(data.settings);
+        setExamHistory(data.examHistory);
+        setQuestionBank(data.questionBank);
+        if (data.examHistory && data.examHistory.length > 0) {
+          setCurrentExamPackage(data.examHistory[0]);
+        } else {
+          setCurrentExamPackage(null);
+        }
+      });
+
+      // 3. Listen to real-time updates from Firestore for this user
+      const unsubscribe = UserDataSync.subscribeUserData(currentUserId, (data) => {
+        setSettings(data.settings);
+        setExamHistory(data.examHistory);
+        setQuestionBank(data.questionBank);
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } else {
+      StorageEngine.setCurrentUserId(null);
+    }
+  }, [currentUserId]);
 
   // Online Exam System States
   const [studentInitialCode, setStudentInitialCode] = useState<string>('');
