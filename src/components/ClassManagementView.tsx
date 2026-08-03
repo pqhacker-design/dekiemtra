@@ -42,6 +42,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
   // Modals state
   const [showAddClassModal, setShowAddClassModal] = useState<boolean>(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
+  const [editingStudent, setEditingStudent] = useState<StudentItem | null>(null);
   const [showBulkImportModal, setShowBulkImportModal] = useState<boolean>(false);
 
   // Form states for class
@@ -197,16 +198,60 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
     return candidateSbd;
   };
 
-  // Handle Save Single Student
-  const handleCreateStudent = async (e: React.FormEvent) => {
+  // Open Add Student Modal
+  const handleOpenAddStudentModal = () => {
+    setEditingStudent(null);
+    setStudentSbdInput('');
+    setStudentNameInput('');
+    setStudentGenderInput('Nam');
+    setStudentDobInput('');
+    setStudentNotesInput('');
+    setShowAddStudentModal(true);
+  };
+
+  // Open Edit Student Modal
+  const handleOpenEditStudentModal = (student: StudentItem) => {
+    setEditingStudent(student);
+    setStudentSbdInput(student.sbd || '');
+    setStudentNameInput(student.name || '');
+    setStudentGenderInput(student.gender || 'Nam');
+    setStudentDobInput(student.dob || '');
+    setStudentNotesInput(student.notes || '');
+    setShowAddStudentModal(true);
+  };
+
+  // Handle Save (Create / Edit) Single Student
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentClass || !studentNameInput.trim()) return;
 
-    const sbd =
-      studentSbdInput.trim() || generateNextSbd(currentClass.name, classStudents, 1);
+    let sbd = studentSbdInput.trim();
+    if (!sbd) {
+      if (editingStudent && editingStudent.sbd) {
+        sbd = editingStudent.sbd;
+      } else {
+        sbd = generateNextSbd(currentClass.name, classStudents, 1);
+      }
+    } else {
+      sbd = sbd.toUpperCase();
+    }
+
+    // Check duplicate SBD globally across all users/students
+    const normSbd = sbd.trim().toUpperCase();
+    const conflict = allGlobalStudents.find(
+      (s) => s.id !== editingStudent?.id && s.sbd && s.sbd.trim().toUpperCase() === normSbd
+    );
+
+    if (conflict) {
+      showToast(
+        'error',
+        `Số báo danh '${sbd}' đã thuộc về học sinh '${conflict.name}' (Lớp ${conflict.className}). Vui lòng chọn SBD khác!`
+      );
+      return;
+    }
 
     try {
-      const res = await OnlineExamService.saveStudents({
+      const studentPayload: any = {
         classId: currentClass.id,
         className: currentClass.name,
         sbd,
@@ -214,19 +259,31 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
         gender: studentGenderInput,
         dob: studentDobInput.trim(),
         notes: studentNotesInput.trim(),
-      });
+      };
+
+      if (editingStudent?.id) {
+        studentPayload.id = editingStudent.id;
+      }
+
+      const res = await OnlineExamService.saveStudents(studentPayload);
 
       if (res.success) {
         setStudentSbdInput('');
         setStudentNameInput('');
         setStudentDobInput('');
         setStudentNotesInput('');
+        setEditingStudent(null);
         setShowAddStudentModal(false);
         await loadClassesAndStudents();
-        showToast('success', `Đã thêm học sinh ${studentNameInput.trim()} vào lớp ${currentClass.name}.`);
+        showToast(
+          'success',
+          editingStudent
+            ? `Đã cập nhật thông tin học sinh ${studentNameInput.trim()}.`
+            : `Đã thêm học sinh ${studentNameInput.trim()} vào lớp ${currentClass.name}.`
+        );
       }
     } catch (err: any) {
-      showToast('error', 'Lỗi khi thêm học sinh: ' + err.message);
+      showToast('error', 'Lỗi khi lưu thông tin học sinh: ' + err.message);
     }
   };
 
@@ -653,7 +710,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
                   </button>
 
                   <button
-                    onClick={() => setShowAddStudentModal(true)}
+                    onClick={handleOpenAddStudentModal}
                     className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
@@ -702,7 +759,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
                       Nhập hàng loạt từ văn bản
                     </button>
                     <button
-                      onClick={() => setShowAddStudentModal(true)}
+                      onClick={handleOpenAddStudentModal}
                       className="px-4 py-2 rounded-xl bg-teal-600 text-white font-bold text-xs"
                     >
                       Thêm 1 học sinh
@@ -747,6 +804,13 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end space-x-1">
+                              <button
+                                onClick={() => handleOpenEditStudentModal(st)}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors cursor-pointer"
+                                title="Chỉnh sửa thông tin học sinh"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
                               <button
                                 onClick={() => handleResetStudentAttempt(st.sbd, st.name)}
                                 className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/80 transition-colors font-bold text-[11px] flex items-center gap-1 cursor-pointer"
@@ -890,104 +954,164 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
         </div>
       )}
 
-      {/* Modal 2: Add Single Student */}
-      {showAddStudentModal && currentClass && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  Thêm Học Sinh - Lớp {currentClass.name}
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowAddStudentModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-sm"
-              >
-                ✕
-              </button>
-            </div>
+      {/* Modal 2: Add or Edit Single Student */}
+      {showAddStudentModal && currentClass && (() => {
+        const enteredSbdNorm = studentSbdInput.trim().toUpperCase();
+        const duplicateConflict = enteredSbdNorm
+          ? allGlobalStudents.find(
+              (s) =>
+                s.id !== editingStudent?.id &&
+                s.sbd &&
+                s.sbd.trim().toUpperCase() === enteredSbdNorm
+            )
+          : null;
 
-            <form onSubmit={handleCreateStudent} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                  Số Báo Danh (SBD)
-                </label>
-                <input
-                  type="text"
-                  placeholder={`Mặc định tự động: ${generateNextSbd(currentClass.name, classStudents, 1)}`}
-                  value={studentSbdInput}
-                  onChange={(e) => setStudentSbdInput(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-4 py-2.5 text-sm font-mono font-bold focus:outline-hidden"
-                />
-                <p className="text-[11px] text-slate-500">
-                  Để trống hệ thống sẽ tự sinh SBD (VD: {generateNextSbd(currentClass.name, classStudents, 1)})
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                  Họ và Tên Học Sinh (*)
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: Nguyễn Văn An"
-                  value={studentNameInput}
-                  onChange={(e) => setStudentNameInput(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-4 py-2.5 text-sm font-semibold focus:outline-hidden focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                    Giới Tính
-                  </label>
-                  <select
-                    value={studentGenderInput}
-                    onChange={(e) => setStudentGenderInput(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-hidden"
-                  >
-                    <option value="Nam">Nam</option>
-                    <option value="Nữ">Nữ</option>
-                  </select>
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  {editingStudent ? (
+                    <Edit2 className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                  ) : (
+                    <UserPlus className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                  )}
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    {editingStudent ? `Sửa Thông Tin - ${editingStudent.name}` : `Thêm Học Sinh - Lớp ${currentClass.name}`}
+                  </h3>
                 </div>
+                <button
+                  onClick={() => {
+                    setShowAddStudentModal(false);
+                    setEditingStudent(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
 
+              <form onSubmit={handleSaveStudent} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
-                    Ngày Sinh
+                    Số Báo Danh (SBD)
                   </label>
                   <input
                     type="text"
-                    placeholder="VD: 15/05/2009"
-                    value={studentDobInput}
-                    onChange={(e) => setStudentDobInput(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-hidden"
+                    placeholder={
+                      editingStudent
+                        ? editingStudent.sbd || 'Nhập SBD mới...'
+                        : `Mặc định tự động: ${generateNextSbd(currentClass.name, classStudents, 1)}`
+                    }
+                    value={studentSbdInput}
+                    onChange={(e) => setStudentSbdInput(e.target.value)}
+                    className={`w-full bg-slate-50 dark:bg-slate-800 border ${
+                      duplicateConflict
+                        ? 'border-rose-500 focus:ring-2 focus:ring-rose-500'
+                        : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-teal-500'
+                    } rounded-2xl px-4 py-2.5 text-sm font-mono font-bold focus:outline-hidden`}
+                  />
+
+                  {duplicateConflict ? (
+                    <div className="flex items-start gap-2 p-3 bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 rounded-2xl text-rose-700 dark:text-rose-300 text-xs font-medium animate-in fade-in duration-150">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+                      <div>
+                        <strong>Cảnh báo trùng SBD:</strong> Số báo danh <span className="font-mono font-bold uppercase">{enteredSbdNorm}</span> đã thuộc về học sinh <strong>{duplicateConflict.name}</strong> (Lớp {duplicateConflict.className}). Vui lòng nhập SBD khác!
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      {editingStudent
+                        ? 'Nhập SBD mới hoặc giữ nguyên. SBD của học sinh trên hệ thống phải là duy nhất.'
+                        : `Để trống hệ thống sẽ tự sinh SBD (VD: ${generateNextSbd(currentClass.name, classStudents, 1)})`}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                    Họ và Tên Học Sinh (*)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Nguyễn Văn An"
+                    value={studentNameInput}
+                    onChange={(e) => setStudentNameInput(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-4 py-2.5 text-sm font-semibold focus:outline-hidden focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddStudentModal(false)}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md"
-                >
-                  Thêm Học Sinh
-                </button>
-              </div>
-            </form>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                      Giới Tính
+                    </label>
+                    <select
+                      value={studentGenderInput}
+                      onChange={(e) => setStudentGenderInput(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-hidden"
+                    >
+                      <option value="Nam">Nam</option>
+                      <option value="Nữ">Nữ</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                      Ngày Sinh
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="VD: 15/05/2009"
+                      value={studentDobInput}
+                      onChange={(e) => setStudentDobInput(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-sm font-semibold focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+                    Ghi Chú
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ghi chú thêm về học sinh..."
+                    value={studentNotesInput}
+                    onChange={(e) => setStudentNotesInput(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl px-3 py-2 text-sm focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddStudentModal(false);
+                      setEditingStudent(null);
+                    }}
+                    className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!!duplicateConflict}
+                    className={`px-5 py-2.5 rounded-2xl font-bold text-sm shadow-md transition-all ${
+                      duplicateConflict
+                        ? 'bg-slate-400 dark:bg-slate-700 text-slate-200 cursor-not-allowed opacity-60'
+                        : 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer'
+                    }`}
+                  >
+                    {editingStudent ? 'Cập Nhật Thông Tin' : 'Thêm Học Sinh'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal 3: Bulk Import Roster */}
       {showBulkImportModal && currentClass && (
