@@ -573,6 +573,9 @@ export function registerExamRoutes(app: express.Express) {
       const normalizeClassStr = (str: string) =>
         str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
 
+      const normalizeNameStr = (str: string) =>
+        str ? str.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ') : '';
+
       // Validate allowed classes for the exam
       if (exam.allowedClasses && Array.isArray(exam.allowedClasses) && exam.allowedClasses.length > 0) {
         const studentNormClass = normalizeClassStr(studentClass);
@@ -583,6 +586,88 @@ export function registerExamRoutes(app: express.Express) {
           return res.status(400).json({
             error: `Cảnh báo: Tên lớp "${studentClass}" không thuộc danh sách các lớp được phép làm bài thi này (${exam.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`,
           });
+        }
+      }
+
+      // Validate student Name and Class against system database (ClassRepository)
+      const allClasses = ClassRepository.getClasses();
+      const allStudents = ClassRepository.getStudents();
+
+      const normClass = normalizeClassStr(studentClass);
+      const normName = normalizeNameStr(studentName);
+      const normSbd = studentId ? studentId.trim().toLowerCase() : '';
+
+      // Validate class existence if system has class or student database
+      if (allClasses.length > 0 || allStudents.length > 0) {
+        const isClassInSystem =
+          allClasses.some((c) => normalizeClassStr(c.name) === normClass || c.id === studentClass) ||
+          allStudents.some((s) => normalizeClassStr(s.className) === normClass) ||
+          (exam.allowedClasses && exam.allowedClasses.some((c) => normalizeClassStr(c) === normClass));
+
+        if (!isClassInSystem) {
+          return res.status(400).json({
+            error: `Cảnh báo: Lớp "${studentClass}" không tồn tại trên hệ thống. Vui lòng kiểm tra lại thông tin tên và lớp!`,
+          });
+        }
+      }
+
+      // Validate student existence in student roster if system has registered students
+      if (allStudents.length > 0) {
+        let matchedStudent = undefined;
+
+        // Check by SBD first if provided
+        if (normSbd) {
+          matchedStudent = allStudents.find((s) => s.sbd && s.sbd.trim().toLowerCase() === normSbd);
+          if (matchedStudent) {
+            const studentNormName = normalizeNameStr(matchedStudent.name);
+            const studentNormClass = normalizeClassStr(matchedStudent.className);
+            if (studentNormName !== normName) {
+              return res.status(400).json({
+                error: `Cảnh báo: Mã HS/SBD "${studentId}" thuộc về học sinh "${matchedStudent.name}" (Lớp ${matchedStudent.className}), không phải "${studentName}". Vui lòng kiểm tra lại thông tin!`,
+              });
+            }
+            if (studentNormClass !== normClass) {
+              return res.status(400).json({
+                error: `Cảnh báo: Học sinh "${matchedStudent.name}" thuộc Lớp "${matchedStudent.className}", không phải Lớp "${studentClass}". Vui lòng kiểm tra lại thông tin!`,
+              });
+            }
+          }
+        }
+
+        // If not matched by SBD, search by Student Name in all students
+        if (!matchedStudent) {
+          const matchingNameStudents = allStudents.filter(
+            (s) =>
+              normalizeNameStr(s.name) === normName ||
+              s.name.trim().toLowerCase() === studentName.trim().toLowerCase()
+          );
+
+          if (matchingNameStudents.length > 0) {
+            // Check if any match belongs to studentClass
+            const exactClassMatch = matchingNameStudents.find(
+              (s) => normalizeClassStr(s.className) === normClass || s.classId === studentClass
+            );
+            if (!exactClassMatch) {
+              const actualClass = matchingNameStudents[0].className;
+              return res.status(400).json({
+                error: `Cảnh báo: Học sinh "${studentName}" trên hệ thống thuộc Lớp "${actualClass}", không phải Lớp "${studentClass}". Vui lòng kiểm tra lại thông tin lớp!`,
+              });
+            }
+          } else {
+            // Name not found anywhere in allStudents. Check if there are registered students in that class
+            const studentsInClass = allStudents.filter(
+              (s) => normalizeClassStr(s.className) === normClass || s.classId === studentClass
+            );
+            if (studentsInClass.length > 0) {
+              return res.status(400).json({
+                error: `Cảnh báo: Không tìm thấy học sinh "${studentName}" trong danh sách Lớp "${studentClass}" trên hệ thống. Vui lòng kiểm tra lại chính xác Họ và Tên!`,
+              });
+            } else {
+              return res.status(400).json({
+                error: `Cảnh báo: Học sinh "${studentName}" (Lớp ${studentClass}) không có trong danh sách học sinh của hệ thống. Vui lòng kiểm tra lại thông tin tên và lớp!`,
+              });
+            }
+          }
         }
       }
 
