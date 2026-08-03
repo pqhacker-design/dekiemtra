@@ -514,8 +514,41 @@ export class ClassRepository {
 
   static findStudentBySbd(sbd: string): StudentItem | undefined {
     if (!sbd) return undefined;
-    const normSbd = sbd.trim().toLowerCase();
+    const cleanSbd = sbd.trim();
+    const cleanSbdUpper = cleanSbd.toUpperCase();
+    const normSbdA = cleanSbdUpper.replace(/[^a-zA-Z0-9]/g, '');
+
     const students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
-    return students.find((s) => s.sbd && s.sbd.trim().toLowerCase() === normSbd);
+
+    // 1. Direct / Alphanumeric Match
+    let found = students.find((s) => {
+      if (!s || !s.sbd) return false;
+      const sbdVal = String(s.sbd).trim();
+      const sbdValUpper = sbdVal.toUpperCase();
+      const normSbdB = sbdValUpper.replace(/[^a-zA-Z0-9]/g, '');
+      return (
+        sbdValUpper === cleanSbdUpper ||
+        sbdVal === cleanSbd ||
+        (normSbdA && normSbdA === normSbdB)
+      );
+    });
+
+    if (found) return found;
+
+    // 2. ClassName + SBD combo or Slash/Dash suffix match (e.g., Class 6 + SBD 201 => "6/201")
+    return students.find((s) => {
+      if (!s) return false;
+      const sbdVal = String(s.sbd || '').trim();
+      const clsVal = String(s.className || '').trim();
+
+      const normCls = clsVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+      const normStSbd = sbdVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+
+      if (normCls && normStSbd && normCls + normStSbd === normSbdA) return true;
+      if (sbdVal && cleanSbdUpper.endsWith('/' + sbdVal.toUpperCase())) return true;
+      if (sbdVal && cleanSbdUpper.endsWith('-' + sbdVal.toUpperCase())) return true;
+
+      return false;
+    });
   }
 }
