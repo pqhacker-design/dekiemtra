@@ -646,8 +646,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setReferenceImages([])}
-                        className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center space-x-1"
+                        onClick={() => {
+                          if (window.confirm('Bạn có chắc chắn muốn xóa tất cả ảnh tài liệu đính kèm không?')) {
+                            setReferenceImages([]);
+                          }
+                        }}
+                        className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center space-x-1 cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Xóa tất cả</span>
@@ -668,8 +672,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                           <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <button
                               type="button"
-                              onClick={() => handleRemoveImage(idx)}
-                              className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-md transition-transform hover:scale-110"
+                              onClick={() => {
+                                if (window.confirm('Bạn có chắc chắn muốn xóa ảnh này không?')) {
+                                  handleRemoveImage(idx);
+                                }
+                              }}
+                              className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-md transition-transform hover:scale-110 cursor-pointer"
                               title="Xóa ảnh này"
                             >
                               <X className="w-4 h-4" />
