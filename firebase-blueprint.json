@@ -15,6 +15,46 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["email", "role", "active"]
+    },
+    "userData": {
+      "title": "UserData",
+      "description": "Per-user created exam packages, question bank, settings, and classes",
+      "type": "document",
+      "properties": {
+        "userId": { "type": "string" },
+        "settings": { "type": "object" },
+        "examHistory": { "type": "array" },
+        "questionBank": { "type": "array" },
+        "classes": { "type": "array" },
+        "students": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Collection of system users"
+    },
+    "/user_data/{userId}": {
+      "schema": "userData",
+      "description": "Collection of user personal data"
+    },
+    "/online_exams/{examId}": {
+      "schema": "userData",
+      "description": "Collection of published online exams"
+    },
+    "/classes/{classId}": {
+      "schema": "userData",
+      "description": "Collection of classes"
+    },
+    "/students/{studentId}": {
+      "schema": "userData",
+      "description": "Collection of students"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "userData",
+      "description": "Collection of student exam test sessions"
     }
   }
 }
