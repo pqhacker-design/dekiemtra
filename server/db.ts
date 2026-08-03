@@ -14,6 +14,7 @@ export interface ExamData {
   status: 'active' | 'locked';
   allowExplanations: boolean; // allow students to see solutions after submit
   allowedClasses?: string[]; // Danh sách các lớp được làm bài (VD: ["10A1", "10A2"])
+  createdBy?: string;
   antiCheat: {
     disallowPrevious: boolean;
     shuffleQuestions: boolean;
@@ -34,6 +35,7 @@ export interface StudentItem {
   gender?: string;
   dob?: string;
   notes?: string;
+  createdBy?: string;
   createdAt?: string;
 }
 
@@ -45,6 +47,7 @@ export interface ClassItem {
   teacherName?: string;
   notes?: string;
   studentCount?: number;
+  createdBy?: string;
   createdAt?: string;
 }
 
@@ -263,17 +266,22 @@ export const sampleInitialExams: ExamData[] = [
 
 export class ExamRepository {
   // --- EXAMS ---
-  static getExams(): ExamData[] {
-    return readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
+  static getExams(userId?: string): ExamData[] {
+    const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
+    if (!userId) return exams;
+    return exams.filter((e) => e.createdBy === userId || (!e.createdBy && userId === 'admin'));
   }
 
   static getExamByCode(code: string): ExamData | undefined {
-    const exams = this.getExams();
+    const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     return exams.find((e) => e.code.toUpperCase() === code.toUpperCase());
   }
 
-  static saveExam(exam: ExamData): ExamData {
-    const exams = this.getExams();
+  static saveExam(exam: ExamData, userId?: string): ExamData {
+    if (userId && !exam.createdBy) {
+      exam.createdBy = userId;
+    }
+    const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     const index = exams.findIndex((e) => e.code.toUpperCase() === exam.code.toUpperCase());
     if (index >= 0) {
       exams[index] = { ...exams[index], ...exam };
@@ -285,7 +293,7 @@ export class ExamRepository {
   }
 
   static updateExamStatus(code: string, status: 'active' | 'locked'): ExamData | undefined {
-    const exams = this.getExams();
+    const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     const exam = exams.find((e) => e.code.toUpperCase() === code.toUpperCase());
     if (exam) {
       exam.status = status;
@@ -295,7 +303,7 @@ export class ExamRepository {
   }
 
   static deleteExam(code: string): boolean {
-    let exams = this.getExams();
+    let exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     const initialLen = exams.length;
     exams = exams.filter((e) => e.code.toUpperCase() !== code.toUpperCase());
     if (exams.length !== initialLen) {
@@ -366,14 +374,21 @@ export class ExamRepository {
     return false;
   }
 
-  static getResultsByExamCode(examCode?: string): StudentSession[] {
+  static getResultsByExamCode(examCode?: string, userId?: string): StudentSession[] {
     const sessions = this.getSessions();
-    if (!examCode || examCode === 'ALL') {
-      return sessions.filter((s) => s.status === 'submitted');
+    const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
+    let filteredExams = exams;
+    if (userId) {
+      filteredExams = exams.filter((e) => e.createdBy === userId || (!e.createdBy && userId === 'admin'));
     }
-    return sessions.filter(
-      (s) => s.examCode.toUpperCase() === examCode.toUpperCase() && s.status === 'submitted'
-    );
+    const userExamCodes = new Set(filteredExams.map((e) => e.code.toUpperCase()));
+
+    return sessions.filter((s) => {
+      if (s.status !== 'submitted') return false;
+      if (userId && !userExamCodes.has(s.examCode.toUpperCase())) return false;
+      if (!examCode || examCode === 'ALL') return true;
+      return s.examCode.toUpperCase() === examCode.toUpperCase();
+    });
   }
 }
 
@@ -402,9 +417,12 @@ export const sampleInitialStudents: StudentItem[] = [
 ];
 
 export class ClassRepository {
-  static getClasses(): ClassItem[] {
-    const classes = readJsonFile<ClassItem[]>(CLASSES_FILE, sampleInitialClasses);
-    const students = this.getStudents();
+  static getClasses(userId?: string): ClassItem[] {
+    let classes = readJsonFile<ClassItem[]>(CLASSES_FILE, sampleInitialClasses);
+    if (userId) {
+      classes = classes.filter((c) => c.createdBy === userId || (!c.createdBy && userId === 'admin'));
+    }
+    const students = this.getStudents(undefined, userId);
     return classes.map((cls) => ({
       ...cls,
       studentCount: students.filter(
@@ -413,7 +431,10 @@ export class ClassRepository {
     }));
   }
 
-  static saveClass(classItem: ClassItem): ClassItem {
+  static saveClass(classItem: ClassItem, userId?: string): ClassItem {
+    if (userId && !classItem.createdBy) {
+      classItem.createdBy = userId;
+    }
     const classes = readJsonFile<ClassItem[]>(CLASSES_FILE, sampleInitialClasses);
     const idx = classes.findIndex(
       (c) => c.id === classItem.id || (c.name && classItem.name && c.name.trim().toLowerCase() === classItem.name.trim().toLowerCase())
@@ -446,8 +467,11 @@ export class ClassRepository {
     return false;
   }
 
-  static getStudents(classIdOrName?: string): StudentItem[] {
-    const students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
+  static getStudents(classIdOrName?: string, userId?: string): StudentItem[] {
+    let students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
+    if (userId) {
+      students = students.filter((s) => s.createdBy === userId || (!s.createdBy && userId === 'admin'));
+    }
     if (!classIdOrName || classIdOrName === 'ALL') return students;
     const norm = classIdOrName.trim().toLowerCase();
     return students.filter(
@@ -455,9 +479,12 @@ export class ClassRepository {
     );
   }
 
-  static saveStudents(newStudents: StudentItem[]): StudentItem[] {
+  static saveStudents(newStudents: StudentItem[], userId?: string): StudentItem[] {
     const students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
     newStudents.forEach((st) => {
+      if (userId && !st.createdBy) {
+        st.createdBy = userId;
+      }
       const idx = students.findIndex(
         (s) => s.id === st.id || (s.sbd && st.sbd && s.sbd.trim().toLowerCase() === st.sbd.trim().toLowerCase())
       );
