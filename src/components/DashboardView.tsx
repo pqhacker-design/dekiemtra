@@ -20,6 +20,7 @@ import {
   BarChart3,
   PieChart as PieIcon,
   ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { ExamPackage, QuestionBankItem } from '../types';
 
@@ -40,6 +41,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onDeleteExamPackage,
   onExportWord,
 }) => {
+  const [deletingItem, setDeletingItem] = React.useState<ExamPackage | null>(null);
   const latestExam = examHistory[0] || null;
 
   // ApexCharts Configurations
@@ -412,9 +414,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => onDeleteExamPackage(item.id)}
+                        onClick={() => setDeletingItem(item)}
                         className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Xóa"
+                        title="Xóa đề thi"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -426,6 +428,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deletingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-2xl flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">Xác Nhận Xóa Đề Thi</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Bạn có chắc chắn muốn xóa gói đề thi <strong className="text-rose-600 dark:text-rose-400">{deletingItem.metadata.examTitle}</strong> khỏi lịch sử không? Hành động này không thể hoàn tác.
+              </p>
+            </div>
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                onClick={() => setDeletingItem(null)}
+                className="w-1/2 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  onDeleteExamPackage(deletingItem.id);
+                  setDeletingItem(null);
+                }}
+                className="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl transition-colors cursor-pointer shadow-md shadow-rose-600/20"
+              >
+                Xóa Ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
