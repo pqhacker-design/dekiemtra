@@ -33,7 +33,13 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
   const [step, setStep] = useState<'login' | 'taking' | 'result' | 'closed'>('login');
 
   // Login Form States
-  const [examCode, setExamCode] = useState(initialCode.toUpperCase());
+  const [examCode, setExamCode] = useState((initialCode || '').trim().toUpperCase());
+
+  useEffect(() => {
+    if (initialCode) {
+      setExamCode(initialCode.trim().toUpperCase());
+    }
+  }, [initialCode]);
   const [sbdInput, setSbdInput] = useState('');
   const [sbdVerified, setSbdVerified] = useState(false);
   const [studentName, setStudentName] = useState('');
