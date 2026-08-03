@@ -36,6 +36,7 @@ export class GeminiService {
       customApiKey,
       model: selectedModel,
       images: metadata.referenceImages || [],
+      onStatusUpdate: onProgress,
     });
 
     if (!rawText) {
