@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { GoogleGenAI } from '@google/genai';
 import {
   ExamRepository,
   ClassRepository,
@@ -204,6 +205,114 @@ function evaluateStudentSessionResult(session: StudentSession, exam: ExamData) {
 }
 
 export function registerExamRoutes(app: express.Express) {
+  // 0. Gemini AI Generation Proxy Endpoint
+  app.post('/api/gemini/generate', async (req: Request, res: Response) => {
+    try {
+      const { prompt, systemInstruction, responseMimeType, responseSchema, customApiKey, model, images } = req.body;
+      const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY;
+
+      if (!apiKey) {
+        return res.status(400).json({ error: 'Chưa cấu hình Gemini API Key. Vui lòng nhập API Key trong phần Cài Đặt Hệ Thống.' });
+      }
+
+      const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.6-flash';
+      const candidateModels = Array.from(
+        new Set([selectedModel, 'gemini-3.6-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'])
+      );
+
+      let lastError: any = null;
+
+      for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+        const currentModel = candidateModels[mIdx];
+
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const ai = new GoogleGenAI({
+              apiKey,
+              httpOptions: {
+                headers: {
+                  'User-Agent': 'aistudio-build',
+                },
+              },
+            });
+
+            const config: any = {};
+            if (systemInstruction) config.systemInstruction = systemInstruction;
+            if (responseMimeType) config.responseMimeType = responseMimeType;
+            if (responseSchema) config.responseSchema = responseSchema;
+
+            let contents: any = prompt;
+            if (Array.isArray(images) && images.length > 0) {
+              const parts: any[] = [];
+              for (const imgUrl of images) {
+                if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+                  const match = imgUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+                  if (match) {
+                    parts.push({
+                      inlineData: {
+                        mimeType: match[1],
+                        data: match[2],
+                      },
+                    });
+                  }
+                }
+              }
+              parts.push({ text: prompt });
+              contents = parts;
+            }
+
+            const response = await ai.models.generateContent({
+              model: currentModel,
+              contents,
+              config,
+            });
+
+            if (response && response.text) {
+              return res.json({ success: true, text: response.text, modelUsed: currentModel });
+            }
+          } catch (err: any) {
+            lastError = err;
+            const errMsg = String(err.message || err);
+
+            const isTransient =
+              errMsg.includes('503') ||
+              errMsg.includes('429') ||
+              errMsg.includes('UNAVAILABLE') ||
+              errMsg.includes('high demand') ||
+              errMsg.includes('RESOURCE_EXHAUSTED') ||
+              errMsg.includes('overloaded');
+
+            if (isTransient) {
+              if (attempt < 3) {
+                await new Promise((r) => setTimeout(r, attempt * 1500));
+                continue;
+              } else {
+                break;
+              }
+            }
+
+            if (errMsg.includes('API key not valid') || errMsg.includes('API_KEY_INVALID')) {
+              return res.status(401).json({ error: 'API Key cá nhân không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại trong phần Cài Đặt Hệ Thống!' });
+            }
+            throw err;
+          }
+        }
+      }
+
+      const rawMsg = String(lastError?.message || '');
+      if (rawMsg.includes('503') || rawMsg.includes('UNAVAILABLE') || rawMsg.includes('high demand')) {
+        return res.status(503).json({
+          error: 'Máy chủ Gemini AI hiện tại đang quá tải (503 High Demand). Hệ thống đã tự động thử lại 3 lần. Vui lòng thử lại sau 5-10 giây!',
+        });
+      }
+
+      return res.status(500).json({ error: lastError?.message || 'Không thể gọi Gemini AI.' });
+    } catch (err: any) {
+      console.error('Lỗi Gemini API Backend:', err);
+      return res.status(500).json({ error: err.message || 'Lỗi xử lý yêu cầu AI.' });
+    }
+  });
+
   // 1. Save or Create Exam
   app.post('/api/exam/save', (req: Request, res: Response) => {
     try {
