@@ -46,6 +46,8 @@ export interface StudentResultItem {
   totalQuestions: number;
   tabSwitches: number;
   activityLogs: { timestamp: string; event: string; details?: string }[];
+  createdBy?: string;
+  teacherId?: string;
 }
 
 export class OnlineExamService {
@@ -644,10 +646,26 @@ export class OnlineExamService {
     studentSchool?: string;
   }) {
     try {
-      return await this.request<any>('/api/exam/start', {
+      const res = await this.request<any>('/api/exam/start', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+
+      if (res && res.session) {
+        const sessions = this.getLocalSessions();
+        const idx = sessions.findIndex((s) => s.id === res.session.id);
+        const updatedSess = {
+          ...res.session,
+          shuffledQuestions: res.questions || res.session.shuffledQuestions,
+        };
+        if (idx >= 0) {
+          sessions[idx] = { ...sessions[idx], ...updatedSess };
+        } else {
+          sessions.push(updatedSess);
+        }
+        this.saveLocalSessions(sessions);
+      }
+      return res;
     } catch (err: any) {
       if (
         err.message &&
@@ -886,13 +904,30 @@ export class OnlineExamService {
       let correctCount = 0;
       const totalQuestions = originalQuestions.length;
       const finalAnswers = { ...session.answers, ...answers };
+      const detailedGrading: any[] = [];
 
-      originalQuestions.forEach((q: any) => {
+      originalQuestions.forEach((q: any, i: number) => {
         const studentAns = finalAnswers[q.id];
-        const correctAns = q.correctOption || q.correctAnswer;
+        const correctAns = q.correctOption || q.correctAnswer || q.shortAnswer || 'A';
+        const pt = Number(q.points) || (exam.totalPoints > 0 && totalQuestions > 0 ? exam.totalPoints / totalQuestions : 0.25);
+        let isCorrect = false;
         if (studentAns && String(studentAns).trim().toUpperCase() === String(correctAns).trim().toUpperCase()) {
+          isCorrect = true;
           correctCount++;
         }
+        detailedGrading.push({
+          questionId: q.id,
+          questionNumber: q.number || i + 1,
+          partType: q.partType || 'PART1',
+          studentAnswer: studentAns || 'Chưa trả lời',
+          correctAnswer: correctAns,
+          isCorrect,
+          points: isCorrect ? pt : 0,
+          maxPoints: pt,
+          content: q.content,
+          options: q.options,
+          explanation: q.explanation || q.solution || q.explain || '',
+        });
       });
 
       const score = totalQuestions > 0 ? Number(((correctCount / totalQuestions) * exam.totalPoints).toFixed(2)) : 0;
@@ -921,7 +956,7 @@ export class OnlineExamService {
           startTime: session.startTime,
           submitTime,
           allowExplanations: exam.allowExplanations,
-          detailedGrading: [],
+          detailedGrading,
         },
       };
     }
@@ -929,30 +964,62 @@ export class OnlineExamService {
     // Always sync result item to Firestore
     try {
       const sessions = this.getLocalSessions();
-      const session = sessions.find((s) => s.id === sessionId);
-      if (session) {
-        const tabSwitches = (session.activityLogs || []).filter((l: any) => l.event && l.event.includes('Chuyển tab')).length;
-        const start = new Date(session.startTime).getTime();
-        const end = session.submitTime ? new Date(session.submitTime).getTime() : Date.now();
+      let session = sessions.find((s) => s.id === sessionId);
+
+      const resResult = submitRes?.result;
+      const examCode = session?.examCode || resResult?.examCode;
+
+      if (examCode) {
+        const examDetail = await this.getExamDetail(examCode).catch(() => null);
+        const exam = examDetail?.exam;
+        const teacherId = exam?.createdBy || '';
+
+        if (session) {
+          session.status = 'submitted';
+          if (resResult) {
+            session.score = resResult.score;
+            session.correctCount = resResult.correctCount;
+            session.incorrectCount = resResult.incorrectCount;
+            session.totalQuestions = resResult.totalQuestions;
+            session.submitTime = resResult.submitTime || session.submitTime;
+          }
+          const sIdx = sessions.findIndex((s) => s.id === sessionId);
+          if (sIdx >= 0) {
+            sessions[sIdx] = session;
+            this.saveLocalSessions(sessions);
+          }
+        }
+
+        const studentName = session?.studentName || '';
+        const studentClass = session?.studentClass || '';
+        const studentId = session?.studentId || '';
+        const startTime = session?.startTime || resResult?.startTime || new Date().toISOString();
+        const submitTime = resResult?.submitTime || session?.submitTime || new Date().toISOString();
+
+        const tabSwitches = (session?.activityLogs || []).filter((l: any) => l.event && l.event.includes('Chuyển tab')).length;
+        const start = new Date(startTime).getTime();
+        const end = new Date(submitTime).getTime();
         const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
 
         await this.syncStudentResultToFirestore({
-          id: session.id,
-          examCode: session.examCode,
-          studentName: session.studentName,
-          studentClass: session.studentClass,
-          studentSbd: session.studentId,
-          studentId: session.studentId,
-          studentSchool: session.studentSchool,
-          startTime: session.startTime,
-          submitTime: session.submitTime || new Date().toISOString(),
+          id: sessionId,
+          examCode: examCode.trim().toUpperCase(),
+          studentName,
+          studentClass,
+          studentSbd: studentId,
+          studentId,
+          studentSchool: session?.studentSchool || '',
+          startTime,
+          submitTime,
           durationMinutes,
-          score: session.score || 0,
-          correctCount: session.correctCount || 0,
-          incorrectCount: session.incorrectCount || 0,
-          totalQuestions: session.totalQuestions || 0,
+          score: resResult?.score ?? session?.score ?? 0,
+          correctCount: resResult?.correctCount ?? session?.correctCount ?? 0,
+          incorrectCount: resResult?.incorrectCount ?? session?.incorrectCount ?? 0,
+          totalQuestions: resResult?.totalQuestions ?? session?.totalQuestions ?? 0,
           tabSwitches,
-          activityLogs: session.activityLogs || [],
+          activityLogs: session?.activityLogs || [],
+          createdBy: teacherId,
+          teacherId,
         });
       }
     } catch (e) {
@@ -1034,8 +1101,9 @@ export class OnlineExamService {
     const firestoreResults = await this.getStudentResultsFromFirestore(codeUpper);
 
     const userId = this.getActiveUserId();
-    const teacherExams = await this.getOnlineExams();
-    const teacherCodes = new Set((teacherExams.exams || []).map((e: any) => (e.code || '').toUpperCase()));
+    const teacherExamsRes = await this.listExams();
+    const examsList: any[] = Array.isArray(teacherExamsRes) ? teacherExamsRes : (teacherExamsRes?.exams || []);
+    const teacherCodes = new Set(examsList.map((e: any) => (e.code || '').toUpperCase()));
 
     const map = new Map<string, StudentResultItem>();
     [...apiResults, ...firestoreResults, ...localResults].forEach((item) => {
