@@ -316,6 +316,7 @@ export function registerExamRoutes(app: express.Express) {
   // 1. Save or Create Exam
   app.post('/api/exam/save', (req: Request, res: Response) => {
     try {
+      const userId = (req.headers['x-user-id'] as string) || req.body.userId;
       const {
         code: inputCode,
         title,
@@ -356,6 +357,7 @@ export function registerExamRoutes(app: express.Express) {
         status: 'active',
         allowExplanations: allowExplanations !== false,
         allowedClasses: Array.isArray(allowedClasses) ? allowedClasses : [],
+        createdBy: userId,
         antiCheat: {
           disallowPrevious: !!antiCheat?.disallowPrevious,
           shuffleQuestions: antiCheat?.shuffleQuestions !== false,
@@ -367,7 +369,7 @@ export function registerExamRoutes(app: express.Express) {
         examPackage,
       };
 
-      const saved = ExamRepository.saveExam(examData);
+      const saved = ExamRepository.saveExam(examData, userId);
       return res.json({ success: true, code: saved.code, exam: saved });
     } catch (err: any) {
       console.error('Lỗi khi lưu đề thi:', err);
@@ -378,7 +380,8 @@ export function registerExamRoutes(app: express.Express) {
   // --- CLASS & STUDENT MANAGEMENT ROUTES ---
   app.get('/api/classes', (req: Request, res: Response) => {
     try {
-      const classes = ClassRepository.getClasses();
+      const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+      const classes = ClassRepository.getClasses(userId);
       return res.json({ success: true, classes });
     } catch (err: any) {
       return res.status(500).json({ error: 'Lỗi lấy danh sách lớp: ' + err.message });
@@ -387,6 +390,7 @@ export function registerExamRoutes(app: express.Express) {
 
   app.post('/api/classes', (req: Request, res: Response) => {
     try {
+      const userId = (req.headers['x-user-id'] as string) || req.body.userId;
       const { id, name, grade, schoolYear, teacherName, notes } = req.body;
       if (!name || !grade) {
         return res.status(400).json({ error: 'Vui lòng điền Tên lớp và Khối lớp.' });
@@ -398,9 +402,10 @@ export function registerExamRoutes(app: express.Express) {
         schoolYear: (schoolYear || '2025 - 2026').trim(),
         teacherName: (teacherName || '').trim(),
         notes: (notes || '').trim(),
+        createdBy: userId,
         createdAt: new Date().toISOString(),
       };
-      const saved = ClassRepository.saveClass(classItem);
+      const saved = ClassRepository.saveClass(classItem, userId);
       return res.json({ success: true, class: saved });
     } catch (err: any) {
       return res.status(500).json({ error: 'Lỗi lưu lớp học: ' + err.message });
@@ -418,8 +423,9 @@ export function registerExamRoutes(app: express.Express) {
 
   app.get('/api/students', (req: Request, res: Response) => {
     try {
+      const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
       const classId = req.query.classId as string;
-      const students = ClassRepository.getStudents(classId);
+      const students = ClassRepository.getStudents(classId, userId);
       return res.json({ success: true, students });
     } catch (err: any) {
       return res.status(500).json({ error: 'Lỗi lấy danh sách học sinh: ' + err.message });
@@ -428,6 +434,7 @@ export function registerExamRoutes(app: express.Express) {
 
   app.post('/api/students', (req: Request, res: Response) => {
     try {
+      const userId = (req.headers['x-user-id'] as string) || req.body.userId;
       const body = req.body;
       const list: StudentItem[] = Array.isArray(body) ? body : [body];
       const prepared = list.map((st, idx) => ({
@@ -439,9 +446,10 @@ export function registerExamRoutes(app: express.Express) {
         gender: st.gender,
         dob: st.dob,
         notes: st.notes,
+        createdBy: userId,
         createdAt: new Date().toISOString(),
       }));
-      const saved = ClassRepository.saveStudents(prepared);
+      const saved = ClassRepository.saveStudents(prepared, userId);
       return res.json({ success: true, students: saved });
     } catch (err: any) {
       return res.status(500).json({ error: 'Lỗi lưu danh sách học sinh: ' + err.message });
@@ -514,7 +522,8 @@ export function registerExamRoutes(app: express.Express) {
   // 2. List all exams
   app.get('/api/exam/list', (req: Request, res: Response) => {
     try {
-      const exams = ExamRepository.getExams();
+      const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+      const exams = ExamRepository.getExams(userId);
       const sessions = ExamRepository.getSessions();
 
       const result = exams.map((exam) => {
@@ -548,7 +557,8 @@ export function registerExamRoutes(app: express.Express) {
   // Alias GET /api/teacher/exams
   app.get('/api/teacher/exams', (req: Request, res: Response) => {
     try {
-      const exams = ExamRepository.getExams();
+      const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
+      const exams = ExamRepository.getExams(userId);
       return res.json({ success: true, exams });
     } catch (err: any) {
       return res.status(500).json({ error: 'Lỗi server: ' + err.message });
@@ -1003,8 +1013,9 @@ export function registerExamRoutes(app: express.Express) {
   // 11. Teacher Get Results
   app.get('/api/teacher/results', (req: Request, res: Response) => {
     try {
+      const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
       const code = (req.query.code as string) || 'ALL';
-      const results = ExamRepository.getResultsByExamCode(code);
+      const results = ExamRepository.getResultsByExamCode(code, userId);
 
       const mapped = results.map((s) => {
         const tabSwitches = (s.activityLogs || []).filter((l) =>
