@@ -212,7 +212,7 @@ export function registerExamRoutes(app: express.Express) {
       const apiKey = (customApiKey || '').trim() || process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
-        return res.status(400).json({ error: 'Chưa cấu hình Gemini API Key. Vui lòng nhập API Key trong phần Cài Đặt Hệ Thống.' });
+        return res.status(400).json({ error: '[NO_API_KEY] Chưa cấu hình Gemini API Key. Vui lòng nhập API Key để tiếp tục.' });
       }
 
       const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.6-flash';
@@ -292,7 +292,10 @@ export function registerExamRoutes(app: express.Express) {
             }
 
             if (errMsg.includes('API key not valid') || errMsg.includes('API_KEY_INVALID')) {
-              return res.status(401).json({ error: 'API Key cá nhân không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại trong phần Cài Đặt Hệ Thống!' });
+              return res.status(401).json({ error: '[INVALID_API_KEY] API Key cá nhân không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra và nhập khóa API mới.' });
+            }
+            if (errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('quota')) {
+              return res.status(429).json({ error: '[QUOTA_EXHAUSTED] Bạn đã sử dụng hết hạn ngạch (Quota) cùa API Key Gemini cá nhân. Vui lòng đổi sang API Key khác hoặc thử lại sau ít phút.' });
             }
             throw err;
           }
@@ -300,6 +303,12 @@ export function registerExamRoutes(app: express.Express) {
       }
 
       const rawMsg = String(lastError?.message || '');
+      if (rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('429') || rawMsg.includes('Quota exceeded') || rawMsg.includes('quota')) {
+        return res.status(429).json({
+          error: '[QUOTA_EXHAUSTED] Bạn đã sử dụng hết hạn ngạch (Quota) cùa API Key Gemini hiện tại. Vui lòng nhập API Key mới hoặc nâng cấp tài khoản tại Google AI Studio!',
+        });
+      }
+
       if (rawMsg.includes('503') || rawMsg.includes('UNAVAILABLE') || rawMsg.includes('high demand')) {
         return res.status(503).json({
           error: 'Máy chủ Gemini AI hiện tại đang quá tải (503 High Demand). Hệ thống đã tự động thử lại 3 lần. Vui lòng thử lại sau 5-10 giây!',
