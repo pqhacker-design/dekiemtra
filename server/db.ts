@@ -269,7 +269,7 @@ export class ExamRepository {
   static getExams(userId?: string): ExamData[] {
     const exams = readJsonFile<ExamData[]>(EXAMS_FILE, sampleInitialExams);
     if (!userId) return exams;
-    return exams.filter((e) => e.createdBy === userId || !e.createdBy);
+    return exams.filter((e) => e.createdBy === userId || (!e.createdBy && userId === 'guest'));
   }
 
   static getExamByCode(code: string): ExamData | undefined {
@@ -420,7 +420,7 @@ export class ClassRepository {
   static getClasses(userId?: string): ClassItem[] {
     let classes = readJsonFile<ClassItem[]>(CLASSES_FILE, sampleInitialClasses);
     if (userId) {
-      classes = classes.filter((c) => c.createdBy === userId || !c.createdBy);
+      classes = classes.filter((c) => c.createdBy === userId || (!c.createdBy && userId === 'guest'));
     }
     const students = this.getStudents(undefined, userId);
     return classes.map((cls) => ({
@@ -473,7 +473,7 @@ export class ClassRepository {
   static getStudents(classIdOrName?: string, userId?: string): StudentItem[] {
     let students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
     if (userId) {
-      students = students.filter((s) => s.createdBy === userId || !s.createdBy);
+      students = students.filter((s) => s.createdBy === userId || (!s.createdBy && userId === 'guest'));
     }
     if (!classIdOrName || classIdOrName === 'ALL') return students;
     const norm = classIdOrName.trim().toLowerCase();
