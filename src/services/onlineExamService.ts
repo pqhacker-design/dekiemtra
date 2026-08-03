@@ -2,6 +2,8 @@
 
 import { UserDataSync } from './userDataSync';
 import { StorageEngine } from './storageEngine';
+import { doc, getDoc, setDoc, getDocs, collection, query, where, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase/firebase';
 
 export interface OnlineExamItem {
   id: string;
@@ -197,6 +199,83 @@ export class OnlineExamService {
     }
   }
 
+  private static async syncPublishedExamToFirestore(exam: any): Promise<void> {
+    if (!exam || !exam.code) return;
+    try {
+      const codeUpper = exam.code.trim().toUpperCase();
+      const docRef = doc(db, 'published_exams', codeUpper);
+      const userId = this.getActiveUserId();
+      await setDoc(
+        docRef,
+        {
+          ...exam,
+          code: codeUpper,
+          createdBy: userId || exam.createdBy || 'anonymous',
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Lỗi đồng bộ published_exams tới Firestore:', e);
+    }
+  }
+
+  private static async getPublishedExamFromFirestore(code: string): Promise<any | null> {
+    if (!code) return null;
+    try {
+      const codeUpper = code.trim().toUpperCase();
+      const docRef = doc(db, 'published_exams', codeUpper);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        return snap.data();
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc published_exams từ Firestore:', e);
+    }
+    return null;
+  }
+
+  private static async syncStudentResultToFirestore(resultItem: StudentResultItem): Promise<void> {
+    if (!resultItem || !resultItem.id) return;
+    try {
+      const docRef = doc(db, 'student_results', resultItem.id);
+      await setDoc(
+        docRef,
+        {
+          ...resultItem,
+          examCode: resultItem.examCode ? resultItem.examCode.trim().toUpperCase() : '',
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('Lỗi lưu student_results tới Firestore:', e);
+    }
+  }
+
+  private static async getStudentResultsFromFirestore(examCode: string = 'ALL'): Promise<StudentResultItem[]> {
+    try {
+      const colRef = collection(db, 'student_results');
+      let q = colRef as any;
+      if (examCode && examCode !== 'ALL') {
+        const codeUpper = examCode.trim().toUpperCase();
+        q = query(colRef, where('examCode', '==', codeUpper));
+      }
+      const snap = await getDocs(q);
+      const items: StudentResultItem[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as StudentResultItem;
+        if (data && data.id) {
+          items.push(data);
+        }
+      });
+      return items;
+    } catch (e) {
+      console.warn('Lỗi đọc student_results từ Firestore:', e);
+      return [];
+    }
+  }
+
   // 1. Save or Publish Exam
   static async saveExam(data: {
     code?: string;
@@ -218,8 +297,9 @@ export class OnlineExamService {
     };
     examPackage: any;
   }) {
+    let savedResult: { success: boolean; code: string; exam: any } | null = null;
     try {
-      return await this.request<{ success: boolean; code: string; exam: any }>('/api/exam/save', {
+      savedResult = await this.request<{ success: boolean; code: string; exam: any }>('/api/exam/save', {
         method: 'POST',
         body: JSON.stringify(data),
       });
@@ -235,7 +315,7 @@ export class OnlineExamService {
       }
 
       // LocalStorage Fallback
-      const code = data.code || this.generateRandomCode();
+      const code = (data.code || this.generateRandomCode()).trim().toUpperCase();
       const newExam: any = {
         id: 'exam_local_' + Date.now(),
         code,
@@ -261,64 +341,140 @@ export class OnlineExamService {
       };
 
       const localExams = this.getLocalExams();
-      const updated = [newExam, ...localExams.filter((e) => e.code.toUpperCase() !== code.toUpperCase())];
+      const updated = [newExam, ...localExams.filter((e) => e.code.toUpperCase() !== code)];
       this.saveLocalExams(updated);
 
-      return { success: true, code, exam: newExam };
+      savedResult = { success: true, code, exam: newExam };
     }
+
+    if (savedResult && savedResult.exam) {
+      await this.syncPublishedExamToFirestore(savedResult.exam);
+      const localExams = this.getLocalExams();
+      const updated = [
+        savedResult.exam,
+        ...localExams.filter((e) => e.code.toUpperCase() !== savedResult!.code.toUpperCase()),
+      ];
+      this.saveLocalExams(updated);
+    }
+
+    return savedResult;
   }
 
   // 2. List all exams for Teacher
   static async listExams() {
+    let apiExams: OnlineExamItem[] = [];
     try {
-      return await this.request<{ success: boolean; exams: OnlineExamItem[] }>('/api/exam/list');
+      const res = await this.request<{ success: boolean; exams: OnlineExamItem[] }>('/api/exam/list');
+      if (res.success && Array.isArray(res.exams)) {
+        apiExams = res.exams;
+      }
     } catch {
-      const exams = this.getLocalExams();
-      const items: OnlineExamItem[] = exams.map((e) => {
-        const pkg = e.examPackage || {};
-        const qCount = pkg.exams?.[0]?.questions?.length || 10;
-        const sessions = this.getLocalSessions().filter((s) => s.examCode.toUpperCase() === e.code.toUpperCase());
-        const activeSessions = sessions.filter((s) => s.status === 'in_progress');
-        const submitted = sessions.filter((s) => s.status === 'submitted');
-
-        return {
-          id: e.id,
-          code: e.code,
-          title: e.title,
-          subject: e.subject,
-          grade: e.grade,
-          duration: e.duration,
-          totalPoints: e.totalPoints,
-          createdDate: e.createdDate,
-          status: e.status || 'active',
-          allowedClasses: e.allowedClasses || [],
-          questionCount: qCount,
-          submissionCount: submitted.length,
-          activeSessionCount: activeSessions.length,
-          antiCheat: e.antiCheat || {
-            disallowPrevious: false,
-            shuffleQuestions: true,
-            shuffleOptions: true,
-            autoSubmitOnTimeout: true,
-            warnTabSwitch: true,
-            tabSwitchLimit: 3,
-          },
-        };
-      });
-
-      return { success: true, exams: items };
+      // ignore API failure
     }
+
+    const localExams = this.getLocalExams();
+    const localItems: OnlineExamItem[] = localExams.map((e) => {
+      const pkg = e.examPackage || {};
+      const qCount = pkg.exams?.[0]?.questions?.length || 10;
+      const sessions = this.getLocalSessions().filter((s) => s.examCode.toUpperCase() === e.code.toUpperCase());
+      const activeSessions = sessions.filter((s) => s.status === 'in_progress');
+      const submitted = sessions.filter((s) => s.status === 'submitted');
+
+      return {
+        id: e.id || 'exam_' + e.code,
+        code: e.code,
+        title: e.title,
+        subject: e.subject,
+        grade: e.grade,
+        duration: e.duration,
+        totalPoints: e.totalPoints,
+        createdDate: e.createdDate,
+        status: e.status || 'active',
+        allowedClasses: e.allowedClasses || [],
+        questionCount: qCount,
+        submissionCount: submitted.length,
+        activeSessionCount: activeSessions.length,
+        antiCheat: e.antiCheat || {
+          disallowPrevious: false,
+          shuffleQuestions: true,
+          shuffleOptions: true,
+          autoSubmitOnTimeout: true,
+          warnTabSwitch: true,
+          tabSwitchLimit: 3,
+        },
+      };
+    });
+
+    let firestoreExams: OnlineExamItem[] = [];
+    try {
+      const colRef = collection(db, 'published_exams');
+      const snap = await getDocs(colRef);
+      snap.forEach((d) => {
+        const e = d.data() as any;
+        if (e && e.code) {
+          const pkg = e.examPackage || {};
+          const qCount = pkg.exams?.[0]?.questions?.length || 10;
+          firestoreExams.push({
+            id: e.id || 'exam_fs_' + e.code,
+            code: e.code,
+            title: e.title || 'Đề kiểm tra',
+            subject: e.subject || 'Môn học',
+            grade: e.grade || 'Khối 10',
+            duration: e.duration || 45,
+            totalPoints: e.totalPoints || 10.0,
+            createdDate: e.createdDate || new Date().toISOString(),
+            status: e.status || 'active',
+            allowedClasses: e.allowedClasses || [],
+            questionCount: qCount,
+            submissionCount: 0,
+            activeSessionCount: 0,
+            antiCheat: e.antiCheat || {
+              disallowPrevious: false,
+              shuffleQuestions: true,
+              shuffleOptions: true,
+              autoSubmitOnTimeout: true,
+              warnTabSwitch: true,
+              tabSwitchLimit: 3,
+            },
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Lỗi đọc published_exams từ Firestore:', e);
+    }
+
+    const map = new Map<string, OnlineExamItem>();
+    [...apiExams, ...firestoreExams, ...localItems].forEach((item) => {
+      if (item && item.code) {
+        const key = item.code.trim().toUpperCase();
+        if (!map.has(key)) {
+          map.set(key, item);
+        }
+      }
+    });
+
+    const merged = Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdDate || 0).getTime() - new Date(a.createdDate || 0).getTime()
+    );
+
+    return { success: true, exams: merged };
   }
 
   // 3. Get Exam Detail
   static async getExamDetail(code: string) {
+    const cleanCode = (code || '').trim().toUpperCase();
     try {
-      return await this.request<{ success: boolean; exam: any }>(`/api/exam/detail/${encodeURIComponent(code)}`);
+      return await this.request<{ success: boolean; exam: any }>(`/api/exam/detail/${encodeURIComponent(cleanCode)}`);
     } catch {
+      const firestoreExam = await this.getPublishedExamFromFirestore(cleanCode);
+      if (firestoreExam) {
+        return { success: true, exam: firestoreExam };
+      }
+
       const exams = this.getLocalExams();
-      const exam = exams.find((e) => e.code.toUpperCase() === code.toUpperCase());
+      const exam = exams.find((e) => e.code.toUpperCase() === cleanCode);
       if (!exam) {
-        throw new Error(`Không tìm thấy đề thi với mã '${code}'.`);
+        throw new Error(`Không tìm thấy đề thi với mã '${cleanCode}'. Vui lòng kiểm tra lại mã đề từ giáo viên.`);
       }
       return { success: true, exam };
     }
@@ -337,49 +493,82 @@ export class OnlineExamService {
       title?: string;
     }
   ) {
+    const cleanCode = (code || '').trim().toUpperCase();
+    let updatedExam: any = null;
     try {
-      return await this.request<{ success: boolean; exam: any }>(`/api/exam/update/${encodeURIComponent(code)}`, {
+      const res = await this.request<{ success: boolean; exam: any }>(`/api/exam/update/${encodeURIComponent(cleanCode)}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
+      if (res.success && res.exam) {
+        updatedExam = res.exam;
+      }
     } catch {
       const exams = this.getLocalExams();
-      const index = exams.findIndex((e) => e.code.toUpperCase() === code.toUpperCase());
-      if (index === -1) {
-        throw new Error('Không tìm thấy đề thi để cập nhật.');
+      const index = exams.findIndex((e) => e.code.toUpperCase() === cleanCode);
+      if (index !== -1) {
+        const existing = exams[index];
+        updatedExam = {
+          ...existing,
+          ...data,
+          antiCheat: data.antiCheat ? { ...existing.antiCheat, ...data.antiCheat } : existing.antiCheat,
+        };
+        exams[index] = updatedExam;
+        this.saveLocalExams(exams);
       }
-      const existing = exams[index];
-      const updated = {
-        ...existing,
-        ...data,
-        antiCheat: data.antiCheat ? { ...existing.antiCheat, ...data.antiCheat } : existing.antiCheat,
-      };
-      exams[index] = updated;
-      this.saveLocalExams(exams);
-      return { success: true, exam: updated };
     }
+
+    if (!updatedExam) {
+      const firestoreExam = await this.getPublishedExamFromFirestore(cleanCode);
+      if (firestoreExam) {
+        updatedExam = {
+          ...firestoreExam,
+          ...data,
+          antiCheat: data.antiCheat ? { ...firestoreExam.antiCheat, ...data.antiCheat } : firestoreExam.antiCheat,
+        };
+      }
+    }
+
+    if (updatedExam) {
+      await this.syncPublishedExamToFirestore(updatedExam);
+      return { success: true, exam: updatedExam };
+    }
+
+    throw new Error('Không tìm thấy đề thi để cập nhật.');
   }
 
   // 5. Delete Exam
   static async deleteExam(code: string) {
+    const cleanCode = (code || '').trim().toUpperCase();
     try {
-      return await this.request<{ success: boolean; message: string }>(
-        `/api/exam/delete/${encodeURIComponent(code)}`,
+      await this.request<{ success: boolean; message: string }>(
+        `/api/exam/delete/${encodeURIComponent(cleanCode)}`,
         {
           method: 'DELETE',
         }
       );
     } catch {
-      const exams = this.getLocalExams().filter((e) => e.code.toUpperCase() !== code.toUpperCase());
-      this.saveLocalExams(exams);
-      return { success: true, message: 'Đã xóa đề thi thành công.' };
+      // ignore
     }
+
+    const exams = this.getLocalExams().filter((e) => e.code.toUpperCase() !== cleanCode);
+    this.saveLocalExams(exams);
+
+    try {
+      const docRef = doc(db, 'published_exams', cleanCode);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn('Lỗi xóa published_exams từ Firestore:', e);
+    }
+
+    return { success: true, message: 'Đã xóa đề thi thành công.' };
   }
 
   // 6. Get Student Exam Public Info
   static async getStudentExamInfo(code: string) {
+    const cleanCode = (code || '').trim().toUpperCase();
     try {
-      return await this.request<{
+      const res = await this.request<{
         success: boolean;
         info: {
           code: string;
@@ -391,9 +580,31 @@ export class OnlineExamService {
           antiCheat: any;
           questionCount: number;
         };
-      }>(`/api/exam/student-info/${encodeURIComponent(code)}`);
+      }>(`/api/exam/student-info/${encodeURIComponent(cleanCode)}`);
+      return res;
     } catch {
-      const examRes = await this.getExamDetail(code);
+      const firestoreExam = await this.getPublishedExamFromFirestore(cleanCode);
+      if (firestoreExam) {
+        if (firestoreExam.status === 'locked') {
+          throw new Error('Đề thi này hiện đang bị khóa bởi giáo viên.');
+        }
+        const questions = firestoreExam.examPackage?.exams?.[0]?.questions || [];
+        return {
+          success: true,
+          info: {
+            code: firestoreExam.code,
+            title: firestoreExam.title,
+            subject: firestoreExam.subject,
+            grade: firestoreExam.grade,
+            duration: firestoreExam.duration,
+            totalPoints: firestoreExam.totalPoints,
+            antiCheat: firestoreExam.antiCheat,
+            questionCount: questions.length,
+          },
+        };
+      }
+
+      const examRes = await this.getExamDetail(cleanCode);
       const exam = examRes.exam;
       if (exam.status === 'locked') {
         throw new Error('Đề thi này hiện đang bị khóa bởi giáo viên.');
@@ -623,8 +834,9 @@ export class OnlineExamService {
 
   // 9. Submit Student Exam
   static async submitExam(sessionId: string, answers: Record<string, any>, remainingSeconds: number) {
+    let submitRes: any = null;
     try {
-      return await this.request<{
+      submitRes = await this.request<{
         success: boolean;
         result: {
           score: number;
@@ -688,7 +900,7 @@ export class OnlineExamService {
       sessions[idx] = session;
       this.saveLocalSessions(sessions);
 
-      return {
+      submitRes = {
         success: true,
         result: {
           score,
@@ -702,6 +914,41 @@ export class OnlineExamService {
         },
       };
     }
+
+    // Always sync result item to Firestore
+    try {
+      const sessions = this.getLocalSessions();
+      const session = sessions.find((s) => s.id === sessionId);
+      if (session) {
+        const tabSwitches = (session.activityLogs || []).filter((l: any) => l.event && l.event.includes('Chuyển tab')).length;
+        const start = new Date(session.startTime).getTime();
+        const end = session.submitTime ? new Date(session.submitTime).getTime() : Date.now();
+        const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
+
+        await this.syncStudentResultToFirestore({
+          id: session.id,
+          examCode: session.examCode,
+          studentName: session.studentName,
+          studentClass: session.studentClass,
+          studentSbd: session.studentId,
+          studentId: session.studentId,
+          studentSchool: session.studentSchool,
+          startTime: session.startTime,
+          submitTime: session.submitTime || new Date().toISOString(),
+          durationMinutes,
+          score: session.score || 0,
+          correctCount: session.correctCount || 0,
+          incorrectCount: session.incorrectCount || 0,
+          totalQuestions: session.totalQuestions || 0,
+          tabSwitches,
+          activityLogs: session.activityLogs || [],
+        });
+      }
+    } catch (e) {
+      console.warn('Lỗi sync student result to Firestore:', e);
+    }
+
+    return submitRes;
   }
 
   // 10. Log Activity (Anti-cheat)
@@ -728,44 +975,65 @@ export class OnlineExamService {
 
   // 11. Get Teacher Results
   static async getTeacherResults(code: string = 'ALL') {
+    const codeUpper = (code || 'ALL').trim().toUpperCase();
+    let apiResults: StudentResultItem[] = [];
     try {
-      return await this.request<{ success: boolean; results: StudentResultItem[] }>(
-        `/api/teacher/results?code=${encodeURIComponent(code)}`
+      const res = await this.request<{ success: boolean; results: StudentResultItem[] }>(
+        `/api/teacher/results?code=${encodeURIComponent(codeUpper)}`
       );
+      if (res.success && Array.isArray(res.results)) {
+        apiResults = res.results;
+      }
     } catch {
-      const sessions = this.getLocalSessions().filter((s) => s.status === 'submitted');
-      const filtered =
-        code === 'ALL'
-          ? sessions
-          : sessions.filter((s) => s.examCode.toUpperCase() === code.toUpperCase());
-
-      const results: StudentResultItem[] = filtered.map((s) => {
-        const tabSwitches = s.activityLogs.filter((l: any) => l.event && l.event.includes('Chuyển tab')).length;
-        const start = new Date(s.startTime).getTime();
-        const end = s.submitTime ? new Date(s.submitTime).getTime() : Date.now();
-        const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
-
-        return {
-          id: s.id,
-          examCode: s.examCode,
-          studentName: s.studentName,
-          studentClass: s.studentClass,
-          studentSbd: s.studentId,
-          studentSchool: s.studentSchool,
-          startTime: s.startTime,
-          submitTime: s.submitTime || undefined,
-          durationMinutes,
-          score: s.score || 0,
-          correctCount: s.correctCount || 0,
-          incorrectCount: s.incorrectCount || 0,
-          totalQuestions: s.totalQuestions || 0,
-          tabSwitches,
-          activityLogs: s.activityLogs || [],
-        };
-      });
-
-      return { success: true, results };
+      // ignore
     }
+
+    const sessions = this.getLocalSessions().filter((s) => s.status === 'submitted');
+    const filteredLocal =
+      codeUpper === 'ALL'
+        ? sessions
+        : sessions.filter((s) => s.examCode.toUpperCase() === codeUpper);
+
+    const localResults: StudentResultItem[] = filteredLocal.map((s) => {
+      const tabSwitches = (s.activityLogs || []).filter((l: any) => l.event && l.event.includes('Chuyển tab')).length;
+      const start = new Date(s.startTime).getTime();
+      const end = s.submitTime ? new Date(s.submitTime).getTime() : Date.now();
+      const durationMinutes = Math.max(1, Math.round((end - start) / 60000));
+
+      return {
+        id: s.id,
+        examCode: s.examCode,
+        studentName: s.studentName,
+        studentClass: s.studentClass,
+        studentSbd: s.studentId,
+        studentId: s.studentId,
+        studentSchool: s.studentSchool,
+        startTime: s.startTime,
+        submitTime: s.submitTime || undefined,
+        durationMinutes,
+        score: s.score || 0,
+        correctCount: s.correctCount || 0,
+        incorrectCount: s.incorrectCount || 0,
+        totalQuestions: s.totalQuestions || 0,
+        tabSwitches,
+        activityLogs: s.activityLogs || [],
+      };
+    });
+
+    const firestoreResults = await this.getStudentResultsFromFirestore(codeUpper);
+
+    const map = new Map<string, StudentResultItem>();
+    [...apiResults, ...firestoreResults, ...localResults].forEach((item) => {
+      if (item && item.id) {
+        map.set(item.id, item);
+      }
+    });
+
+    const merged = Array.from(map.values()).sort(
+      (a, b) => new Date(b.submitTime || 0).getTime() - new Date(a.submitTime || 0).getTime()
+    );
+
+    return { success: true, results: merged };
   }
 
   // 12. Delete Student Result
