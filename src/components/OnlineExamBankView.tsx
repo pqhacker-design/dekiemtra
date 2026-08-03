@@ -86,7 +86,8 @@ export const OnlineExamBankView: React.FC<OnlineExamBankViewProps> = ({
   }, []);
 
   const handleCopyExamLink = (code: string) => {
-    const link = `${window.location.origin}?exam=${encodeURIComponent(code)}`;
+    const base = window.location.origin + window.location.pathname;
+    const link = `${base.replace(/\/$/, '')}?exam=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(link);
     setCopiedLinkCode(code);
     setTimeout(() => setCopiedLinkCode(null), 2500);

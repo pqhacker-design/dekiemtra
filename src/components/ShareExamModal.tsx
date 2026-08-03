@@ -21,8 +21,8 @@ export const ShareExamModal: React.FC<ShareExamModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentHost = window.location.origin;
-  const shareUrl = `${currentHost}?exam=${encodeURIComponent(examCode)}`;
+  const currentHost = window.location.origin + window.location.pathname;
+  const shareUrl = `${currentHost.replace(/\/$/, '')}?exam=${encodeURIComponent(examCode)}`;
   const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
     shareUrl
   )}`;
