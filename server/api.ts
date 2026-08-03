@@ -345,12 +345,19 @@ export function registerExamRoutes(app: express.Express) {
       }
 
       let code = (inputCode || '').trim().toUpperCase();
-      if (!code) {
+      if (code) {
+        const existingExam = ExamRepository.getExamByCode(code);
+        if (existingExam && existingExam.createdBy !== userId && existingExam.id !== req.body.id) {
+          return res.status(400).json({
+            error: `Mã đề thi '${code}' đã tồn tại trên hệ thống. Mã đề thi của các tài khoản phải là duy nhất, tuyệt đối không trùng lặp! Vui lòng chọn mã đề khác.`
+          });
+        }
+      } else {
         let attempts = 0;
         do {
           code = generateRandomCode();
           attempts++;
-        } while (ExamRepository.getExamByCode(code) && attempts < 10);
+        } while (ExamRepository.getExamByCode(code) && attempts < 50);
       }
 
       const examData: ExamData = {
