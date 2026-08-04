@@ -112,7 +112,7 @@ export const Login: React.FC = () => {
               required
               value={usernameInput}
               onChange={(e) => setUsernameInput(e.target.value)}
-              placeholder="Nhập username hoặc email (VD: admin)"
+              placeholder="Nhập username hoặc email"
               className="w-full px-4 py-3 bg-slate-950 border border-slate-700/80 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-500 transition-colors"
             />
           </div>
@@ -160,7 +160,7 @@ export const Login: React.FC = () => {
         </form>
 
         <p className="text-[10px] text-center text-slate-500">
-          Bảo mật dữ liệu trên Cloud Firestore & Quản lý phân quyền tài khoản nội bộ.
+          Liên hệ Zalo - 0913117321.
         </p>
       </div>
     </div>
