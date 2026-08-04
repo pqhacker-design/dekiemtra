@@ -1564,37 +1564,51 @@ export class OnlineExamService {
       // ignore API failure
     }
 
-    // 2. Query Firestore & local students (ignoreUserIdFilter = true)
+    // 2. Query Firestore & local students
+    let targetUserId: string | undefined = undefined;
+    if (code) {
+      const examRes = await this.getExamDetail(code).catch(() => null);
+      if (examRes && examRes.exam) {
+        targetUserId = examRes.exam.createdBy;
+      }
+    }
+
     const studentsRes = await this.getStudents(undefined, true);
     const allStudents = studentsRes.students || [];
 
     const normSbdA = cleanSbdUpper.replace(/[^a-zA-Z0-9]/g, '');
 
-    // First try direct / alphanumeric match
-    let student = allStudents.find((s) => {
+    const matchStudent = (s: any) => {
       if (!s || !s.sbd) return false;
       const sbdVal = String(s.sbd).trim();
       const sbdValUpper = sbdVal.toUpperCase();
       const normSbdB = sbdValUpper.replace(/[^a-zA-Z0-9]/g, '');
-      return sbdValUpper === cleanSbdUpper || sbdVal === cleanSbd || (normSbdA && normSbdA === normSbdB);
-    });
 
-    // If not found, try matching Class + SBD combinations (e.g., Class "6" + SBD "201" => "6/201")
+      if (sbdValUpper === cleanSbdUpper || sbdVal === cleanSbd || (normSbdA && normSbdA === normSbdB)) {
+        return true;
+      }
+
+      const clsVal = String(s.className || '').trim();
+      const normCls = clsVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+      const normStSbd = sbdVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
+
+      if (normCls && normStSbd && normCls + normStSbd === normSbdA) return true;
+      if (sbdVal && cleanSbdUpper.endsWith('/' + sbdVal.toUpperCase())) return true;
+      if (sbdVal && cleanSbdUpper.endsWith('-' + sbdVal.toUpperCase())) return true;
+
+      return false;
+    };
+
+    let student: any = null;
+    if (targetUserId) {
+      const userStudents = allStudents.filter(
+        (s) => s.createdBy === targetUserId || (!s.createdBy && targetUserId === 'guest')
+      );
+      student = userStudents.find(matchStudent);
+    }
+
     if (!student) {
-      student = allStudents.find((s) => {
-        if (!s) return false;
-        const sbdVal = String(s.sbd || '').trim();
-        const clsVal = String(s.className || '').trim();
-
-        const normCls = clsVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
-        const normStSbd = sbdVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
-
-        if (normCls && normStSbd && normCls + normStSbd === normSbdA) return true;
-        if (sbdVal && cleanSbdUpper.endsWith('/' + sbdVal.toUpperCase())) return true;
-        if (sbdVal && cleanSbdUpper.endsWith('-' + sbdVal.toUpperCase())) return true;
-
-        return false;
-      });
+      student = allStudents.find(matchStudent);
     }
 
     if (!student) {
