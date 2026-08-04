@@ -450,7 +450,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               Khởi Tạo Đề Kiểm Tra Chuẩn Quốc Gia
             </h1>
             <p className="text-teal-100/80 text-sm mt-1 max-w-2xl">
-              Hệ thống AI tự động sinh Ma trận đề, Bảng đặc tả, Đề thi đa mã đề, Đáp án chi tiết và Rubric chấm bài hoàn chỉnh chỉ trong vài giây.
+              Hệ thống AI tự động sinh Ma trận đề, Bảng đặc tả, Đề thi, Đáp án chi tiết và Rubric chấm bài.
             </p>
           </div>
         </div>

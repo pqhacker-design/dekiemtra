@@ -521,7 +521,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
             Quản Lý Lớp Học & Học Sinh
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
-            Tạo lớp học, quản lý danh sách học sinh và tự động sinh <strong>Số Báo Danh (SBD)</strong>. Khi giao bài kiểm tra, học sinh chỉ cần nhập SBD là có thể làm bài ngay mà không cần điền thủ công tên và lớp.
+            Tạo lớp học, quản lý danh sách học sinh và tự động sinh <strong>Số Báo Danh (SBD)</strong>.
           </p>
         </div>
 

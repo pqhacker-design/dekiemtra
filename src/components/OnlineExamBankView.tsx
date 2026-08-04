@@ -144,7 +144,7 @@ export const OnlineExamBankView: React.FC<OnlineExamBankViewProps> = ({
           </div>
           <h2 className="text-2xl font-black tracking-tight">Kho Đề Trực Tuyến Bằng Mã Đề</h2>
           <p className="text-xs text-teal-200/90 max-w-2xl">
-            Quản lý kho đề kiểm tra đã lưu, cấp mã đề ngẫu nhiên cho học sinh làm bài online, theo dõi tiến độ nộp bài và xem thống kê kết quả tức thì.
+            Quản lý kho đề kiểm tra online.
           </p>
         </div>
 

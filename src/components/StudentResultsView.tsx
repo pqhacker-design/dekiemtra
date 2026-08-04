@@ -228,7 +228,7 @@ export const StudentResultsView: React.FC<StudentResultsViewProps> = ({
           </div>
           <h2 className="text-2xl font-black tracking-tight">Kết Quả Học Sinh Làm Bài</h2>
           <p className="text-xs text-teal-200/90 max-w-2xl">
-            Theo dõi chi tiết điểm số, thời gian nộp bài, số câu đúng/sai và nhật ký vi phạm chống gian lận của học sinh theo từng mã đề thi.
+            Theo dõi chi tiết kết quả làm bài của học sinh.
           </p>
         </div>
 
