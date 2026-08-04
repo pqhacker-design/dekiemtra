@@ -230,7 +230,7 @@ export function cleanLatexForDocx(latex: string): string {
   str = str.replace(/\\sim\b/g, '∼').replace(/\\perp\b/g, '⊥').replace(/\\parallel\b/g, '∥').replace(/\\angle\b/g, '∠');
   str = str.replace(/\\le(q)?\b/g, '≤').replace(/\\ge(q)?\b/g, '≥').replace(/\\neq\b/g, '≠').replace(/\\approx\b/g, '≈').replace(/\\infty\b/g, '∞');
   str = str.replace(/\\in\b/g, '∈').replace(/\\notin\b/g, '∉').replace(/\\times\b/g, '×').replace(/\\cdot\b/g, '·');
-  str = str.replace(/\\vdots\b/g, '⋮').replace(/\\cdots\b/g, '⋯').replace(/\\ldots\b/g, '…');
+  str = str.replace(/\\vdots\b/g, '⋮').replace(/\\cdots\b/g, '⋯').replace(/\\ldots\b/g, '…').replace(/\\dots\b/g, '…').replace(/\\ddots\b/g, '⋱');
   str = str.replace(/\\mid\b/g, '|').replace(/\\nmid\b/g, '∤').replace(/\\div\b/g, '÷');
   str = str.replace(/\\triangle\b/g, '△').replace(/\\cong\b/g, '≅').replace(/\\equiv\b/g, '≡');
   str = str.replace(/\\(Leftrightarrow|Rightarrow|rightarrow|to)/g, '⇔');
@@ -310,7 +310,7 @@ export function parseMathChildren(
     [/\\infty\b/g, '∞'], [/\\in\b/g, '∈'], [/\\notin\b/g, '∉'], [/\\subset\b/g, '⊂'], [/\\subseteq\b/g, '⊆'],
     [/\\cup\b/g, '∪'], [/\\cap\b/g, '∩'], [/\\emptyset\b/g, '∅'], [/\\times\b/g, '×'],
     [/\\cdot\b/g, '·'], [/\\pm\b/g, '±'], [/\\to\b/g, '→'], [/\\rightarrow\b/g, '→'],
-    [/\\vdots\b/g, '⋮'], [/\\cdots\b/g, '⋯'], [/\\ldots\b/g, '…'],
+    [/\\vdots\b/g, '⋮'], [/\\cdots\b/g, '⋯'], [/\\ldots\b/g, '…'], [/\\dots\b/g, '…'], [/\\ddots\b/g, '⋱'],
     [/\\mid\b/g, '|'], [/\\nmid\b/g, '∤'], [/\\triangle\b/g, '△'], [/\\div\b/g, '÷'],
     [/\\cong\b/g, '≅'], [/\\equiv\b/g, '≡'], [/\\setminus\b/g, '∖'],
     [/\\Rightarrow\b/g, '⇒'], [/\\Leftrightarrow\b/g, '⇔'], [/\\degree\b/g, '°'],
@@ -637,41 +637,64 @@ function processPlainPart(plain: string): string {
   if (!plain) return plain;
   let str = plain;
 
-  // 1. Tự động bọc $$...$$ cho các môi trường \begin{cases}...\end{cases}, \begin{aligned}...\end{aligned}, v.v.
+  // 1. Dọn dẹp dấu $ bị lẻ/mồ côi dán trực tiếp vào lệnh LaTeX (e.g., \cdot$ -> \cdot)
+  str = str.replace(/(\\[a-zA-Z]+(\{[^{}]*\})*)\$/g, '$1');
+
+  // 2. Loại bỏ dấu $ lẻ đơn độc không có cặp trong phần plain text
+  const dollarMatches = str.match(/\$/g);
+  if (dollarMatches && dollarMatches.length % 2 !== 0) {
+    str = str.replace(/([^$]*)\$([^$]*)$/, '$1$2');
+  }
+
+  // 3. Chuẩn hóa phép nhân dấu chấm giữa các số/biến (VD: "25 . 74" hay "25.74" -> "25 \cdot 74")
+  str = str.replace(/(\b[0-9A-Za-z]+)\s*\.\s*([0-9A-Za-z]+\b)/g, (m, p1, p2) => {
+    if (/^\d+$/.test(p1) && /^\d+$/.test(p2) && !m.includes(' ')) {
+      return m; // Giữ nguyên số thập phân chuẩn như 3.14
+    }
+    return `${p1} \\cdot ${p2}`;
+  });
+
+  // 4. Tự động bọc $$...$$ cho các môi trường LaTeX nhiều dòng
   str = str.replace(
     /(\\begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\end\{\2\})/g,
     ' $$$1$$ '
   );
 
-  // 2. Tự động bọc $...$ cho các biểu thức tập hợp chứa { ... } có lệnh toán (e.g. { x \in \mathbb{N} \mid 15 \le x < 28 })
-  str = str.replace(/(\{?\s*[A-Za-z0-9_\^\+\-\*/\.\,\s=<>]*\\(in|mid|mathbb|setminus|subset|subseteq|vdots|le|ge)[^{}\n]*\}?)/g, (match) => {
-    const trimmed = match.trim();
-    if (!trimmed.startsWith('$')) {
-      return ` $${trimmed}$ `;
-    }
-    return match;
-  });
+  // 5. Gom và bọc NGUYÊN CẢ KHỐI CÔNG THỨC liên tục chứa lệnh LaTeX hoặc lũy thừa/chỉ số
+  const latexCommandRegex = /\\(d?frac|sqrt|mathbb|vec|widehat|tilde|overline|bar|vdots|cdots|ldots|dots|ddots|mid|nmid|Delta|alpha|beta|gamma|delta|epsilon|theta|lambda|pi|sigma|phi|omega|Omega|angle|triangle|sim|perp|parallel|cong|equiv|le|geq|leq|ge|neq|approx|degree|cdot|times|pm|div|Leftrightarrow|Rightarrow|rightarrow|to|forall|exists|in|notin|subset|subseteq|supset|supseteq|cap|cup|emptyset|setminus)\b|[\^]|\\\{/g;
 
-  // 3. Tự động bọc $...$ cho phân số \frac{...}{...} hoặc \dfrac{...}{...}
-  str = str.replace(/(\\d?frac\{[^{}]+\}\{[^{}]+\})/g, ' $$$1$$ ');
+  if (latexCommandRegex.test(str)) {
+    const isVietnameseWord = (word: string) => {
+      if (!word) return false;
+      if (/[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(word)) return true;
+      const commonVnWords = ['cho', 'tinh', 'tim', 'viet', 'thuc', 'hien', 'phep', 'tinh', 'bieu', 'thuc', 'tap', 'hop', 'gia', 'tri', 'sao', 'cho', 'voi', 'khi', 'do', 'bang', 'cach', 'liet', 'ke', 'phan', 'tu', 'chung', 'minh', 'rang', 'so', 'tu', 'nhien', 'hoc', 'sinh', 'cau', 'diem', 'dap', 'an'];
+      return commonVnWords.includes(word.toLowerCase());
+    };
 
-  // 4. Tự động bọc $...$ cho căn thức \sqrt{...}
-  str = str.replace(/(\\sqrt(\[[^\]]+\])?\{[^{}]+\})/g, ' $$$1$$ ');
+    str = str.replace(/((?:[a-zA-Z0-9_A-Z\+\-\*\/\=\<\>\(\)\[\]\{\}\s\:\,\|\.]*?\\(?:d?frac|sqrt|mathbb|vec|widehat|tilde|overline|bar|vdots|cdots|ldots|dots|ddots|mid|nmid|Delta|alpha|beta|gamma|delta|epsilon|theta|lambda|pi|sigma|phi|omega|Omega|angle|triangle|sim|perp|parallel|cong|equiv|le|geq|leq|ge|neq|approx|degree|cdot|times|pm|div|Leftrightarrow|Rightarrow|rightarrow|to|forall|exists|in|notin|subset|subseteq|supset|supseteq|cap|cup|emptyset|setminus)\b[a-zA-Z0-9_A-Z\+\-\*\/\=\<\>\(\)\[\]\{\}\s\:\,\|\.\\\^]*)+)/g, (match) => {
+      let trimmed = match.trim();
+      let trailingPunct = '';
+      if (/[.,;:\?!]$/.test(trimmed)) {
+        trailingPunct = trimmed.slice(-1);
+        trimmed = trimmed.slice(0, -1).trim();
+      }
+      if (!trimmed || trimmed.startsWith('$')) return match;
 
-  // 5. Tự động bọc $...$ cho tập hợp \mathbb{...}
-  str = str.replace(/(\\mathbb\{[A-Za-z]+\})/g, ' $$$1$$ ');
+      const words = trimmed.split(/\s+/);
+      const hasVnWord = words.some(isVietnameseWord);
+      if (hasVnWord) {
+        return match.replace(/(\\{1,2}[a-zA-Z]+\{[^{}]*\}|\\{1,2}[a-zA-Z]+\b|[0-9A-Za-z_]+\^[0-9A-Za-z_\{\}\+\-]+)/g, ' $$$1$$ ');
+      }
 
-  // 6. Tự động bọc $...$ cho các lệnh mũ / góc / vectơ / dấu gạch ngang
-  str = str.replace(/(\\wide(hat|tilde)\{[^{}]+\}|\\hat\{[^{}]+\}|\\vec\{[^{}]+\}|\\overline\{[^{}]+\})/g, ' $$$1$$ ');
+      return ` $${trimmed}$ ${trailingPunct}`;
+    });
 
-  // 7. Tự động bọc $...$ cho các ký hiệu toán học đặc trưng bao gồm \vdots, \mid, \le, \ge, \in, \cdot, v.v.
-  str = str.replace(/(\\(vdots|cdots|ldots|mid|nmid|Delta|alpha|beta|gamma|delta|epsilon|theta|lambda|pi|sigma|phi|omega|Omega|angle|triangle|sim|perp|parallel|cong|equiv|le|geq|leq|ge|neq|approx|degree|cdot|times|pm|div|Leftrightarrow|Rightarrow|rightarrow|to|forall|exists|in|notin|subset|subseteq|supset|supseteq|cap|cup|emptyset|setminus)\b)/g, ' $$$1$$ ');
-
-  // 8. Tự động bọc $...$ cho biểu thức có chứa phép nâng lên lũy thừa (ví dụ: 4^2 . 5 -> 4^2 \cdot 5)
-  str = str.replace(/([0-9A-Za-z_]+\^[0-9A-Za-z_\{\}]+(\s*[\.\+\-\*/×·]\s*[0-9A-Za-z_\^\+\-\*/\{\}]+)*)/g, (m) => {
-    let mathExpr = m.replace(/([0-9A-Za-z_]+)\s*\.\s*([0-9A-Za-z_]+)/g, '$1 \\cdot $2');
-    return ` $${mathExpr}$ `;
-  });
+    // 6. Bọc cho các lũy thừa độc lập chưa bọc (VD: 3^2, 3^3, 3^{99}, 2A + 1 = 3^n)
+    str = str.replace(/([^$\w]|^)([A-Za-z0-9_\(\)]+\s*[\=\+\-\*\/]?\s*[A-Za-z0-9_]+\^[0-9A-Za-z_\{\}\+\-]+(\s*[\+\-\*\/\=\s]*[0-9A-Za-z_\^\+\-\*/\{\}]+)*)([^$\w]|$)/g, (m, p1, p2, p3) => {
+      if (p2.includes('$')) return m;
+      return `${p1} $${p2.trim()}$ ${p3}`;
+    });
+  }
 
   return str;
 }
@@ -679,21 +702,24 @@ function processPlainPart(plain: string): string {
 export function autoWrapUnwrappedLatex(text: string): string {
   if (!text) return text;
 
+  // Xóa các dấu $ mồ côi dán trực tiếp vào sau lệnh LaTeX
+  let cleanedText = text.replace(/(\\[a-zA-Z]+(\{[^{}]*\})*)\$/g, '$1');
+
   // Tách text thành các khối đã bọc sẵn ($...$, $$...$$, \(...\), \[...\]) và phần text thường
   const mathBlockRegex = /(\$\$.*?\$\$|\$.*?\$|\\\[.*?\\\]|\\\([^\)]*\\\))/gs;
   const parts: string[] = [];
   let lastIdx = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = mathBlockRegex.exec(text)) !== null) {
+  while ((match = mathBlockRegex.exec(cleanedText)) !== null) {
     if (match.index > lastIdx) {
-      parts.push(processPlainPart(text.substring(lastIdx, match.index)));
+      parts.push(processPlainPart(cleanedText.substring(lastIdx, match.index)));
     }
     parts.push(match[0]); // Khối math đã bọc sẵn
     lastIdx = mathBlockRegex.lastIndex;
   }
-  if (lastIdx < text.length) {
-    parts.push(processPlainPart(text.substring(lastIdx)));
+  if (lastIdx < cleanedText.length) {
+    parts.push(processPlainPart(cleanedText.substring(lastIdx)));
   }
 
   let result = parts.join('');
