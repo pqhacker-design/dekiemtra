@@ -495,7 +495,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tên Sở / Phòng GD&ĐT
+                Tên Cơ quan chủ quản
               </label>
               <input
                 type="text"
@@ -574,8 +574,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none font-medium text-teal-700 dark:text-teal-300"
               >
                 <option value="Kết nối tri thức với cuộc sống">Kết nối tri thức với cuộc sống</option>
-                <option value="Chân trời sáng tạo">Chân trời sáng tạo</option>
-                <option value="Cánh Diều">Cánh Diều</option>
+                <option value="Bộ SGK thống nhất">Bộ SGK thống nhất</option>
                 <option value="Chương trình GDPT 2018 khác">Chương trình GDPT 2018 khác</option>
               </select>
             </div>
