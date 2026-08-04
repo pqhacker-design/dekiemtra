@@ -140,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               AI Test Generator Pro
             </h1>
             <p className="text-slate-300 text-xs md:text-sm leading-relaxed font-medium">
-              Khởi tạo Ma trận, Bảng đặc tả YCCĐ, Mã đề hoán vị và Rubric chấm tự động bám sát ma trận chuẩn cho giáo viên THCS & THPT toàn quốc.
+              Hệ thống tạo Bài Kiểm Tra với Ma trận, Bản đặc tả, Rubic chấm tự động.
             </p>
           </div>
 
@@ -164,7 +164,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         >
           <div>
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Đề Thi Đã Sinh
+              Đề KT Đã Sinh
             </p>
             <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
               {examHistory.length} gói đề
@@ -210,7 +210,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Khối 6 - 12
             </h3>
             <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-bold mt-1 flex items-center gap-1">
-              <Grid className="w-3.5 h-3.5" /> THCS & THPT Toàn quốc
+              <Grid className="w-3.5 h-3.5" /> THCS & THPT
             </p>
           </div>
           <div className="w-13 h-13 rounded-2xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 flex items-center justify-center font-bold">
@@ -227,7 +227,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Chất Lượng Đáp Án
             </p>
             <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-              100% Khắc Phục
+              100% OK
             </h3>
             <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> Hiện lời giải ngay
@@ -343,7 +343,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center space-x-2">
             <Clock className="w-5 h-5 text-emerald-500" />
             <h3 className="text-base font-black text-slate-900 dark:text-white">
-              Lịch Sử Gói Đề Thi Đã Sinh
+              Lịch Sử Gói Đề KT Đã Sinh
             </h3>
           </div>
         </div>
