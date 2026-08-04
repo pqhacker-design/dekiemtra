@@ -996,21 +996,35 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
                     Số Báo Danh (SBD)
                   </label>
-                  <input
-                    type="text"
-                    placeholder={
-                      editingStudent
-                        ? editingStudent.sbd || 'Nhập SBD mới...'
-                        : `Mặc định tự động: ${generateNextSbd(currentClass.name, classStudents, 1)}`
-                    }
-                    value={studentSbdInput}
-                    onChange={(e) => setStudentSbdInput(e.target.value)}
-                    className={`w-full bg-slate-50 dark:bg-slate-800 border ${
-                      duplicateConflict
-                        ? 'border-rose-500 focus:ring-2 focus:ring-rose-500'
-                        : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-teal-500'
-                    } rounded-2xl px-4 py-2.5 text-sm font-mono font-bold focus:outline-hidden`}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder={
+                        editingStudent
+                          ? editingStudent.sbd || 'Nhập SBD mới...'
+                          : `Mặc định tự động: ${generateNextSbd(currentClass.name, classStudents, 1)}`
+                      }
+                      value={studentSbdInput}
+                      onChange={(e) => setStudentSbdInput(e.target.value)}
+                      className={`flex-1 bg-slate-50 dark:bg-slate-800 border ${
+                        duplicateConflict
+                          ? 'border-rose-500 focus:ring-2 focus:ring-rose-500'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-teal-500'
+                      } rounded-2xl px-4 py-2.5 text-sm font-mono font-bold focus:outline-hidden`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextSbd = generateNextSbd(currentClass.name, classStudents, 1);
+                        setStudentSbdInput(nextSbd);
+                      }}
+                      className="px-3 py-2.5 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900 text-teal-700 dark:text-teal-300 rounded-2xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                      title="Tự động tạo Số Báo Danh duy nhất không trùng"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      Tự sinh SBD
+                    </button>
+                  </div>
 
                   {duplicateConflict ? (
                     <div className="flex items-start gap-2 p-3 bg-rose-50 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800 rounded-2xl text-rose-700 dark:text-rose-300 text-xs font-medium animate-in fade-in duration-150">
