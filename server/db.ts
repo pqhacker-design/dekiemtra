@@ -538,7 +538,7 @@ export class ClassRepository {
     return false;
   }
 
-  static findStudentBySbd(sbd: string): StudentItem | undefined {
+  static findStudentBySbd(sbd: string, targetUserId?: string, allowedClasses?: string[]): StudentItem | undefined {
     if (!sbd) return undefined;
     const cleanSbd = sbd.trim();
     const cleanSbdUpper = cleanSbd.toUpperCase();
@@ -546,27 +546,17 @@ export class ClassRepository {
 
     const students = readJsonFile<StudentItem[]>(STUDENTS_FILE, sampleInitialStudents);
 
-    // 1. Direct / Alphanumeric Match
-    let found = students.find((s) => {
+    const matchStudent = (s: StudentItem): boolean => {
       if (!s || !s.sbd) return false;
       const sbdVal = String(s.sbd).trim();
       const sbdValUpper = sbdVal.toUpperCase();
       const normSbdB = sbdValUpper.replace(/[^a-zA-Z0-9]/g, '');
-      return (
-        sbdValUpper === cleanSbdUpper ||
-        sbdVal === cleanSbd ||
-        (normSbdA && normSbdA === normSbdB)
-      );
-    });
 
-    if (found) return found;
+      if (sbdValUpper === cleanSbdUpper || sbdVal === cleanSbd || (normSbdA && normSbdA === normSbdB)) {
+        return true;
+      }
 
-    // 2. ClassName + SBD combo or Slash/Dash suffix match (e.g., Class 6 + SBD 201 => "6/201")
-    return students.find((s) => {
-      if (!s) return false;
-      const sbdVal = String(s.sbd || '').trim();
       const clsVal = String(s.className || '').trim();
-
       const normCls = clsVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
       const normStSbd = sbdVal.toUpperCase().replace(/[^a-zA-Z0-9]/g, '');
 
@@ -575,6 +565,18 @@ export class ClassRepository {
       if (sbdVal && cleanSbdUpper.endsWith('-' + sbdVal.toUpperCase())) return true;
 
       return false;
-    });
+    };
+
+    // 1. If targetUserId is provided, try finding student belonging to that creator
+    if (targetUserId) {
+      const userStudents = students.filter(
+        (s) => s.createdBy === targetUserId || (!s.createdBy && targetUserId === 'guest')
+      );
+      const userFound = userStudents.find(matchStudent);
+      if (userFound) return userFound;
+    }
+
+    // 2. Fall back to finding matching student across all students
+    return students.find(matchStudent);
   }
 }

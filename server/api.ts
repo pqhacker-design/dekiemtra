@@ -490,27 +490,38 @@ export function registerExamRoutes(app: express.Express) {
         return res.status(400).json({ error: 'Vui lòng nhập Số báo danh.' });
       }
 
-      const student = ClassRepository.findStudentBySbd(sbd);
+      let targetUserId: string | undefined = undefined;
+      let allowedClasses: string[] | undefined = undefined;
+      let exam: any = null;
+
+      if (code) {
+        exam = ExamRepository.getExamByCode(code);
+        if (exam) {
+          targetUserId = exam.createdBy;
+          if (Array.isArray(exam.allowedClasses)) {
+            allowedClasses = exam.allowedClasses;
+          }
+        }
+      }
+
+      const student = ClassRepository.findStudentBySbd(sbd, targetUserId, allowedClasses);
       if (!student) {
         return res.status(404).json({ error: `Không tìm thấy học sinh có SBD: ${sbd}` });
       }
 
-      if (code) {
+      if (exam && allowedClasses && allowedClasses.length > 0) {
         const normalizeClass = (str: string) =>
           str ? str.trim().toLowerCase().replace(/^(lớp|lop|class)\s*/gi, '').replace(/[^a-z0-9]/gi, '') : '';
 
-        const exam = ExamRepository.getExamByCode(code);
-        if (exam && Array.isArray(exam.allowedClasses) && exam.allowedClasses.length > 0) {
-          const studentNorm = normalizeClass(student.className);
-          const isAllowed = exam.allowedClasses.some(
-            (c) => normalizeClass(c) === studentNorm || c === student.classId
-          );
-          if (!isAllowed) {
-            return res.status(403).json({
-              error: `Cảnh báo: Học sinh ${student.name} (Lớp ${student.className}) không thuộc danh sách lớp được phép làm bài thi này (${exam.allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`,
-              student,
-            });
-          }
+        const studentNorm = normalizeClass(student.className);
+        const isAllowed = allowedClasses.some(
+          (c) => normalizeClass(c) === studentNorm || c === student.classId
+        );
+        if (!isAllowed) {
+          return res.status(403).json({
+            error: `Cảnh báo: Học sinh ${student.name} (Lớp ${student.className}) không thuộc danh sách lớp được phép làm bài thi này (${allowedClasses.join(', ')}). Vui lòng kiểm tra lại thông tin tên và lớp!`,
+            student,
+          });
         }
       }
 
