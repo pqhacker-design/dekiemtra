@@ -20,6 +20,7 @@ import {
   TableCell,
   TableRow,
   TextRun,
+  VerticalAlign,
   WidthType,
 } from 'docx';
 import { ExamMetadata, ExamPackage, Question, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
@@ -1098,6 +1099,228 @@ async function buildContentParagraphs(
   return paragraphs;
 }
 
+/**
+ * Tạo Bảng Ma Trận Đề Kiểm Tra chuẩn định dạng Công văn 7991 (14 cột: T, Chủ đề, Đơn vị kiến thức, 8 cột Mức độ nhận thức TN/TL, Tổng câu, Tổng điểm, Tỷ lệ %)
+ */
+export function buildMatrixDocxTable(matrix: MatrixRow[]): Table {
+  const getNum = (part: any, field: string): number => (part && part[field] ? Number(part[field]) : 0);
+
+  // Hàng Tiêu Đề 1
+  const headerRow1 = new TableRow({
+    tableHeader: true,
+    children: [
+      new TableCell({
+        rowSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'T', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        rowSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [
+          new Paragraph({ children: [new TextRun({ text: 'Chủ đề /', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER }),
+          new Paragraph({ children: [new TextRun({ text: 'Mạch nội dung', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER }),
+        ],
+      }),
+      new TableCell({
+        rowSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Đơn vị kiến thức', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        columnSpan: 8,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Mức độ nhận thức (Số câu hỏi)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        rowSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Tổng câu', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        rowSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Tổng điểm', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        rowSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [
+          new Paragraph({ children: [new TextRun({ text: 'Tỷ lệ', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER }),
+          new Paragraph({ children: [new TextRun({ text: '%', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER }),
+        ],
+      }),
+    ],
+  });
+
+  // Hàng Tiêu Đề 2
+  const headerRow2 = new TableRow({
+    tableHeader: true,
+    children: [
+      new TableCell({
+        columnSpan: 2,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Nhận biết', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        columnSpan: 2,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Thông hiểu', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        columnSpan: 2,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Vận dụng', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        columnSpan: 2,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'Vận dụng cao', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+    ],
+  });
+
+  // Hàng Tiêu Đề 3
+  const headerRow3 = new TableRow({
+    tableHeader: true,
+    children: [
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TN', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TL', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TN', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TL', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TN', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TL', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TN', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'TL', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+    ],
+  });
+
+  // Tích lũy tổng
+  let totalQuestionsSum = 0;
+  let totalPointsSum = 0;
+  let totalPercentageSum = 0;
+
+  let sum_rem_TN = 0, sum_rem_TL = 0;
+  let sum_und_TN = 0, sum_und_TL = 0;
+  let sum_app_TN = 0, sum_app_TL = 0;
+  let sum_adv_TN = 0, sum_adv_TL = 0;
+
+  const dataRows = matrix.map((row) => {
+    const rem_TN = getNum(row.part1, 'remember') + getNum(row.part2, 'remember') + getNum(row.part3, 'remember');
+    const rem_TL = getNum(row.part4, 'remember');
+
+    const und_TN = getNum(row.part1, 'understand') + getNum(row.part2, 'understand') + getNum(row.part3, 'understand');
+    const und_TL = getNum(row.part4, 'understand');
+
+    const app_TN = getNum(row.part1, 'apply') + getNum(row.part2, 'apply') + getNum(row.part3, 'apply');
+    const app_TL = getNum(row.part4, 'apply');
+
+    const adv_TN = getNum(row.part1, 'advanced') + getNum(row.part2, 'advanced') + getNum(row.part3, 'advanced');
+    const adv_TL = getNum(row.part4, 'advanced');
+
+    sum_rem_TN += rem_TN;
+    sum_rem_TL += rem_TL;
+    sum_und_TN += und_TN;
+    sum_und_TL += und_TL;
+    sum_app_TN += app_TN;
+    sum_app_TL += app_TL;
+    sum_adv_TN += adv_TN;
+    sum_adv_TL += adv_TL;
+
+    totalQuestionsSum += Number(row.totalQuestions || 0);
+    totalPointsSum += Number(row.totalPoints || 0);
+    totalPercentageSum += Number(row.percentage || 0);
+
+    const fmtVal = (val: number) =>
+      val > 0
+        ? [new TextRun({ text: val.toString(), bold: true, size: 18, font: 'Times New Roman' })]
+        : [new TextRun({ text: '-', size: 18, font: 'Times New Roman' })];
+
+    return new TableRow({
+      children: [
+        // T (STT)
+        new TableCell({
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new TextRun({ text: row.stt.toString(), bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+        }),
+        // Chủ đề / Mạch nội dung
+        new TableCell({
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: createDocxInlineRuns(row.topic, { size: 18, font: 'Times New Roman' }) })],
+        }),
+        // Đơn vị kiến thức
+        new TableCell({
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: createDocxInlineRuns(row.subTopic, { size: 18, font: 'Times New Roman' }) })],
+        }),
+        // Nhận biết TN / TL
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(rem_TN), alignment: AlignmentType.CENTER })] }),
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(rem_TL), alignment: AlignmentType.CENTER })] }),
+        // Thông hiểu TN / TL
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(und_TN), alignment: AlignmentType.CENTER })] }),
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(und_TL), alignment: AlignmentType.CENTER })] }),
+        // Vận dụng TN / TL
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(app_TN), alignment: AlignmentType.CENTER })] }),
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(app_TL), alignment: AlignmentType.CENTER })] }),
+        // Vận dụng cao TN / TL
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(adv_TN), alignment: AlignmentType.CENTER })] }),
+        new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: fmtVal(adv_TL), alignment: AlignmentType.CENTER })] }),
+        // Tổng câu
+        new TableCell({
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new TextRun({ text: `${row.totalQuestions}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+        }),
+        // Tổng điểm
+        new TableCell({
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new TextRun({ text: `${row.totalPoints}đ`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+        }),
+        // Tỷ lệ %
+        new TableCell({
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new TextRun({ text: `${row.percentage}%`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+        }),
+      ],
+    });
+  });
+
+  // Hàng Tổng Cộng
+  const footerRow = new TableRow({
+    children: [
+      new TableCell({
+        columnSpan: 3,
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: 'TỔNG CỘNG:', bold: true, size: 18, font: 'Times New Roman' })] })],
+      }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_rem_TN}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_rem_TL}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_und_TN}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_und_TL}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_app_TN}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_app_TL}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_adv_TN}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({ verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${sum_adv_TL}`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
+      new TableCell({
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: `${totalQuestionsSum} câu`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: `${totalPointsSum}đ`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+      new TableCell({
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ children: [new TextRun({ text: `${totalPercentageSum > 0 ? totalPercentageSum : 100}%`, bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })],
+      }),
+    ],
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [headerRow1, headerRow2, headerRow3, ...dataRows, footerRow],
+  });
+}
+
 export class ExportDocx {
   /**
    * Xuất toàn bộ Gói Đề Thi (Ma trận, Bảng đặc tả, Đề thi các mã, Đáp án, Rubric) ra 1 file Word (.docx)
@@ -1170,75 +1393,8 @@ export class ExportDocx {
             font: 'Times New Roman',
           }),
         ],
-      })
-    );
-
-    const matrixHeaderRow1 = new TableRow({
-      tableHeader: true,
-      children: [
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'STT', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Chủ đề / Mạch nội dung', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Nhận biết (TN)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Nhận biết (TL)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Thông hiểu (TN)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Thông hiểu (TL)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Vận dụng (TN)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Vận dụng (TL)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Vận dụng cao (TN)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Vận dụng cao (TL)', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Phần I', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Phần II', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Phần III', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Phần IV', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Tổng điểm', bold: true, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-      ],
-    });
-
-    const matrixRows = matrix.map((row) => {
-      const getNum = (part: any, field: string): number => (part && part[field]) ? Number(part[field]) : 0;
-
-      const p1Count = Object.values(row.part1).reduce((a, b) => a + Number(b || 0), 0);
-      const p2Count = Object.values(row.part2).reduce((a, b) => a + Number(b || 0), 0);
-      const p3Count = Object.values(row.part3).reduce((a, b) => a + Number(b || 0), 0);
-      const p4Count = Object.values(row.part4).reduce((a, b) => a + Number(b || 0), 0);
-
-      const rem_TN = getNum(row.part1, 'remember') + getNum(row.part2, 'remember') + getNum(row.part3, 'remember');
-      const rem_TL = getNum(row.part4, 'remember');
-
-      const und_TN = getNum(row.part1, 'understand') + getNum(row.part2, 'understand') + getNum(row.part3, 'understand');
-      const und_TL = getNum(row.part4, 'understand');
-
-      const app_TN = getNum(row.part1, 'apply') + getNum(row.part2, 'apply') + getNum(row.part3, 'apply');
-      const app_TL = getNum(row.part4, 'apply');
-
-      const adv_TN = getNum(row.part1, 'advanced') + getNum(row.part2, 'advanced') + getNum(row.part3, 'advanced');
-      const adv_TL = getNum(row.part4, 'advanced');
-
-      return new TableRow({
-        children: [
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row.stt.toString(), size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: createDocxInlineRuns(row.topic, { size: 18, font: 'Times New Roman' }) })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: rem_TN ? `${rem_TN}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: rem_TL ? `${rem_TL}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: und_TN ? `${und_TN}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: und_TL ? `${und_TL}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: app_TN ? `${app_TN}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: app_TL ? `${app_TL}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: adv_TN ? `${adv_TN}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: adv_TL ? `${adv_TL}` : '-', size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${p1Count}`, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${p2Count}`, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${p3Count}`, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${p4Count}`, size: 18, font: 'Times New Roman' })], alignment: AlignmentType.CENTER })] }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${row.totalPoints}đ`, size: 18, font: 'Times New Roman', bold: true })], alignment: AlignmentType.CENTER })] }),
-        ],
-      });
-    });
-
-    docChildren.push(
-      new Table({
-        rows: [matrixHeaderRow1, ...matrixRows],
       }),
+      buildMatrixDocxTable(matrix),
       new Paragraph({ text: '', spacing: { after: 300 } })
     );
 
@@ -1957,6 +2113,87 @@ export class ExportDocx {
 
     const blob = await Packer.toBlob(doc);
     const fileName = `Dap_An_Va_Huong_Dan_Cham_${metadata.subject}_${metadata.grade}.docx`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 2000);
+  }
+
+  /**
+   * Xuất riêng Ma trận Đề kiểm tra ra 1 file Word (.docx)
+   */
+  static async exportMatrixOnlyToDocx(examPack: ExamPackage): Promise<void> {
+    const { metadata, matrix } = examPack;
+
+    const docChildren: any[] = [];
+
+    // Header thông tin hành chính
+    docChildren.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({
+            text: metadata.departmentName.toUpperCase(),
+            bold: true,
+            size: 22,
+            font: 'Times New Roman',
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({
+            text: metadata.schoolName.toUpperCase(),
+            bold: true,
+            size: 24,
+            font: 'Times New Roman',
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 100, after: 150 },
+        children: [
+          new TextRun({
+            text: `KHUNG MA TRẬN ĐỀ KIỂM TRA CHUẨN CÔNG VĂN 7991/BGDĐT`,
+            bold: true,
+            size: 26,
+            color: '008080',
+            font: 'Times New Roman',
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 300 },
+        children: [
+          new TextRun({
+            text: `Môn: ${metadata.subject} - Lớp: ${metadata.grade} (${metadata.curriculum}) | Thời gian: ${metadata.durationMinutes} phút | Tổng điểm: ${metadata.totalPoints}đ`,
+            italics: true,
+            size: 22,
+            font: 'Times New Roman',
+          }),
+        ],
+      })
+    );
+
+    docChildren.push(buildMatrixDocxTable(matrix));
+
+    const doc = new Document({
+      sections: [{ children: docChildren }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const fileName = `Ma_Tran_De_Thi_${metadata.subject}_${metadata.grade}.docx`;
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
