@@ -507,6 +507,42 @@ export class OnlineExamService {
       (a, b) => new Date(b.createdDate || 0).getTime() - new Date(a.createdDate || 0).getTime()
     );
 
+    // Calculate actual submission counts across Firestore student_results and local sessions
+    try {
+      const submissionIdMap = new Map<string, Set<string>>();
+
+      const firestoreResults = await this.getStudentResultsFromFirestore('ALL');
+      firestoreResults.forEach((res) => {
+        if (res && res.examCode && res.id) {
+          const codeKey = res.examCode.trim().toUpperCase();
+          if (!submissionIdMap.has(codeKey)) {
+            submissionIdMap.set(codeKey, new Set<string>());
+          }
+          submissionIdMap.get(codeKey)!.add(res.id);
+        }
+      });
+
+      const localSessions = this.getLocalSessions();
+      localSessions.forEach((sess) => {
+        if (sess && sess.examCode && sess.id && sess.status === 'submitted') {
+          const codeKey = sess.examCode.trim().toUpperCase();
+          if (!submissionIdMap.has(codeKey)) {
+            submissionIdMap.set(codeKey, new Set<string>());
+          }
+          submissionIdMap.get(codeKey)!.add(sess.id);
+        }
+      });
+
+      merged.forEach((exam) => {
+        const codeKey = (exam.code || '').trim().toUpperCase();
+        const submissionSet = submissionIdMap.get(codeKey);
+        const count = submissionSet ? submissionSet.size : 0;
+        exam.submissionCount = Math.max(exam.submissionCount || 0, count);
+      });
+    } catch (e) {
+      console.warn('Lỗi cập nhật submissionCount trong listExams:', e);
+    }
+
     return { success: true, exams: merged };
   }
 
@@ -1166,6 +1202,11 @@ export class OnlineExamService {
   // 12. Delete Student Result
   static async deleteResult(sessionId: string) {
     try {
+      await deleteDoc(doc(db, 'student_results', sessionId));
+    } catch (e) {
+      console.warn('Lỗi xóa student_results trên Firestore:', e);
+    }
+    try {
       return await this.request<{ success: boolean; message: string }>(
         `/api/teacher/results/${encodeURIComponent(sessionId)}`,
         {
@@ -1678,6 +1719,34 @@ export class OnlineExamService {
     sbd?: string;
     studentName?: string;
   }) {
+    if (data.sessionId) {
+      try {
+        await deleteDoc(doc(db, 'student_results', data.sessionId));
+      } catch (e) {
+        console.warn('Lỗi xóa student_results trên Firestore khi reset session:', e);
+      }
+    } else if (data.examCode && data.sbd) {
+      try {
+        const codeUpper = data.examCode.trim().toUpperCase();
+        const sbdUpper = data.sbd.trim().toUpperCase();
+        const colRef = collection(db, 'student_results');
+        const q = query(colRef, where('examCode', '==', codeUpper));
+        const snap = await getDocs(q);
+        snap.forEach(async (d) => {
+          const res = d.data() as StudentResultItem;
+          if (
+            res &&
+            ((res.studentSbd && res.studentSbd.trim().toUpperCase() === sbdUpper) ||
+              (res.studentId && res.studentId.trim().toUpperCase() === sbdUpper))
+          ) {
+            await deleteDoc(d.ref);
+          }
+        });
+      } catch (e) {
+        console.warn('Lỗi xóa student_results matching SBD trên Firestore:', e);
+      }
+    }
+
     try {
       return await this.request<{ success: boolean; message: string }>('/api/exam/reset-student-session', {
         method: 'POST',
