@@ -109,18 +109,15 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
           <thead>
             {/* Header Level 1 */}
             <tr className="bg-teal-900 text-white font-bold text-center">
-              <th rowSpan={3} className="border border-slate-400 p-2 w-10">STT</th>
+              <th rowSpan={3} className="border border-slate-400 p-2 w-10">T</th>
               <th rowSpan={3} className="border border-slate-400 p-2 min-w-[170px]">Chủ đề / Mạch nội dung</th>
-              <th rowSpan={3} className="border border-slate-400 p-2 min-w-[150px]">Đơn vị kiến thức</th>
+              <th rowSpan={3} className="border border-slate-400 p-2 min-w-[170px]">Đơn vị kiến thức</th>
               <th colSpan={8} className="border border-slate-400 p-2 bg-teal-800">
                 Mức độ nhận thức (Số câu hỏi)
               </th>
-              <th colSpan={4} className="border border-slate-400 p-2 bg-teal-950">
-                Dạng câu hỏi theo CV 7991
-              </th>
-              <th rowSpan={3} className="border border-slate-400 p-2 w-14">Tổng câu</th>
+              <th rowSpan={3} className="border border-slate-400 p-2 w-16">Tổng câu</th>
               <th rowSpan={3} className="border border-slate-400 p-2 w-16">Tổng điểm</th>
-              <th rowSpan={3} className="border border-slate-400 p-2 w-14">Tỷ lệ %</th>
+              <th rowSpan={3} className="border border-slate-400 p-2 w-16">Tỷ lệ %</th>
             </tr>
             {/* Header Level 2 */}
             <tr className="bg-teal-800 text-teal-100 font-semibold text-center text-[11px]">
@@ -128,30 +125,21 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
               <th colSpan={2} className="border border-slate-400 p-1">Thông hiểu</th>
               <th colSpan={2} className="border border-slate-400 p-1">Vận dụng</th>
               <th colSpan={2} className="border border-slate-400 p-1">Vận dụng cao</th>
-              <th rowSpan={2} className="border border-slate-400 p-1.5 min-w-[65px]">Phần I (4 lựa chọn)</th>
-              <th rowSpan={2} className="border border-slate-400 p-1.5 min-w-[65px]">Phần II (Đúng/Sai)</th>
-              <th rowSpan={2} className="border border-slate-400 p-1.5 min-w-[65px]">Phần III (Trả lời ngắn)</th>
-              <th rowSpan={2} className="border border-slate-400 p-1.5 min-w-[65px]">Phần IV (Tự luận)</th>
             </tr>
             {/* Header Level 3 */}
             <tr className="bg-teal-700 text-white font-bold text-center text-[10px]">
-              <th className="border border-slate-400 p-1 w-7 bg-teal-700">TN</th>
-              <th className="border border-slate-400 p-1 w-7 bg-emerald-800">TL</th>
-              <th className="border border-slate-400 p-1 w-7 bg-teal-700">TN</th>
-              <th className="border border-slate-400 p-1 w-7 bg-emerald-800">TL</th>
-              <th className="border border-slate-400 p-1 w-7 bg-teal-700">TN</th>
-              <th className="border border-slate-400 p-1 w-7 bg-emerald-800">TL</th>
-              <th className="border border-slate-400 p-1 w-7 bg-teal-700">TN</th>
-              <th className="border border-slate-400 p-1 w-7 bg-emerald-800">TL</th>
+              <th className="border border-slate-400 p-1 w-8 bg-teal-700">TN</th>
+              <th className="border border-slate-400 p-1 w-8 bg-emerald-800">TL</th>
+              <th className="border border-slate-400 p-1 w-8 bg-teal-700">TN</th>
+              <th className="border border-slate-400 p-1 w-8 bg-emerald-800">TL</th>
+              <th className="border border-slate-400 p-1 w-8 bg-teal-700">TN</th>
+              <th className="border border-slate-400 p-1 w-8 bg-emerald-800">TL</th>
+              <th className="border border-slate-400 p-1 w-8 bg-teal-700">TN</th>
+              <th className="border border-slate-400 p-1 w-8 bg-emerald-800">TL</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
             {editableMatrix.map((row) => {
-              const p1Sum = (Object.values(row.part1 || {}) as number[]).reduce((a, b) => a + Number(b || 0), 0);
-              const p2Sum = (Object.values(row.part2 || {}) as number[]).reduce((a, b) => a + Number(b || 0), 0);
-              const p3Sum = (Object.values(row.part3 || {}) as number[]).reduce((a, b) => a + Number(b || 0), 0);
-              const p4Sum = (Object.values(row.part4 || {}) as number[]).reduce((a, b) => a + Number(b || 0), 0);
-
               // Sub-breakdowns: TN (p1+p2+p3) vs TL (p4) per level
               const rem_TN = getNum(row.part1, 'remember') + getNum(row.part2, 'remember') + getNum(row.part3, 'remember');
               const rem_TL = getNum(row.part4, 'remember');
@@ -196,42 +184,36 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                   </td>
 
                   {/* Nhận biết: TN / TL */}
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-blue-600 dark:text-blue-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {rem_TN || '-'}
                   </td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {rem_TL || '-'}
                   </td>
 
                   {/* Thông hiểu: TN / TL */}
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-blue-600 dark:text-blue-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {und_TN || '-'}
                   </td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {und_TL || '-'}
                   </td>
 
                   {/* Vận dụng: TN / TL */}
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-blue-600 dark:text-blue-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {app_TN || '-'}
                   </td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {app_TL || '-'}
                   </td>
 
                   {/* Vận dụng cao: TN / TL */}
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-blue-600 dark:text-blue-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {adv_TN || '-'}
                   </td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-emerald-600 dark:text-emerald-400">
+                  <td className="border border-slate-300 dark:border-slate-700 p-1.5 text-center font-bold text-slate-800 dark:text-slate-200">
                     {adv_TL || '-'}
                   </td>
-
-                  {/* Part Counts */}
-                  <td className="border border-slate-300 dark:border-slate-700 p-2 text-center font-medium">{p1Sum}</td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-2 text-center font-medium">{p2Sum}</td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-2 text-center font-medium">{p3Sum}</td>
-                  <td className="border border-slate-300 dark:border-slate-700 p-2 text-center font-medium">{p4Sum}</td>
 
                   <td className="border border-slate-300 dark:border-slate-700 p-2 text-center font-black text-slate-900 dark:text-white">
                     {row.totalQuestions}
@@ -248,40 +230,37 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
           </tbody>
           <tfoot>
             <tr className="bg-slate-100 dark:bg-slate-800 font-extrabold text-center text-slate-900 dark:text-white text-xs">
-              <td colSpan={3} className="border border-slate-400 p-2 text-right">TỔNG CỘNG:</td>
+              <td colSpan={3} className="border border-slate-400 p-2 text-left font-bold">TỔNG CỘNG:</td>
               
               {/* Totals for TN & TL per cognitive level */}
-              <td className="border border-slate-400 p-1 text-blue-700 dark:text-blue-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part1, 'remember') + getNum(b.part2, 'remember') + getNum(b.part3, 'remember'), 0)}
               </td>
-              <td className="border border-slate-400 p-1 text-emerald-700 dark:text-emerald-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part4, 'remember'), 0)}
               </td>
 
-              <td className="border border-slate-400 p-1 text-blue-700 dark:text-blue-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part1, 'understand') + getNum(b.part2, 'understand') + getNum(b.part3, 'understand'), 0)}
               </td>
-              <td className="border border-slate-400 p-1 text-emerald-700 dark:text-emerald-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part4, 'understand'), 0)}
               </td>
 
-              <td className="border border-slate-400 p-1 text-blue-700 dark:text-blue-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part1, 'apply') + getNum(b.part2, 'apply') + getNum(b.part3, 'apply'), 0)}
               </td>
-              <td className="border border-slate-400 p-1 text-emerald-700 dark:text-emerald-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part4, 'apply'), 0)}
               </td>
 
-              <td className="border border-slate-400 p-1 text-blue-700 dark:text-blue-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part1, 'advanced') + getNum(b.part2, 'advanced') + getNum(b.part3, 'advanced'), 0)}
               </td>
-              <td className="border border-slate-400 p-1 text-emerald-700 dark:text-emerald-400">
+              <td className="border border-slate-400 p-1 font-bold">
                 {editableMatrix.reduce((a, b) => a + getNum(b.part4, 'advanced'), 0)}
               </td>
 
-              <td colSpan={4} className="border border-slate-400 p-2 text-slate-600 dark:text-slate-400 font-semibold">
-                Tổng TN / TL
-              </td>
               <td className="border border-slate-400 p-2 font-black">{totalQuestionsSum} câu</td>
               <td className="border border-slate-400 p-2 text-teal-700 dark:text-teal-400 font-black">{totalPointsSum}đ</td>
               <td className="border border-slate-400 p-2 font-black">100%</td>
