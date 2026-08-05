@@ -437,11 +437,11 @@ export default function App() {
 
   // Export handlers
   const handleExportWord = async (
-    modeOrPack?: 'full' | 'exams' | 'answers' | ExamPackage,
-    mode: 'full' | 'exams' | 'answers' = 'full'
+    modeOrPack?: 'full' | 'exams' | 'answers' | 'matrix' | ExamPackage,
+    mode: 'full' | 'exams' | 'answers' | 'matrix' = 'full'
   ) => {
     let target: ExamPackage | null = currentExamPackage;
-    let exportMode: 'full' | 'exams' | 'answers' = mode;
+    let exportMode: 'full' | 'exams' | 'answers' | 'matrix' = mode;
 
     if (typeof modeOrPack === 'string') {
       exportMode = modeOrPack;
@@ -466,7 +466,9 @@ export default function App() {
     });
 
     try {
-      if (exportMode === 'exams') {
+      if (exportMode === 'matrix') {
+        await ExportDocx.exportMatrixOnlyToDocx(target);
+      } else if (exportMode === 'exams') {
         await ExportDocx.exportExamsOnlyToDocx(target);
       } else if (exportMode === 'answers') {
         await ExportDocx.exportAnswerKeysOnlyToDocx(target);
@@ -714,7 +716,7 @@ export default function App() {
                 <MatrixView
                   examPackage={currentExamPackage}
                   onUpdateMatrix={handleUpdateMatrix}
-                  onExportWord={() => handleExportWord()}
+                  onExportWord={() => handleExportWord('matrix')}
                   onExportExcel={() => handleExportExcel()}
                 />
               )}
