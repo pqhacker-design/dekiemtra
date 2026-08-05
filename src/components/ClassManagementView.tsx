@@ -22,6 +22,7 @@ import {
   Award,
   AlertTriangle,
   X,
+  Loader2,
 } from 'lucide-react';
 import { ClassItem, StudentItem } from '../types';
 import { OnlineExamService } from '../services/onlineExamService';
@@ -67,6 +68,11 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
   const [customPrefix, setCustomPrefix] = useState('');
 
   // Confirmation Modal & Toast Notification State
+  const [isSubmittingClass, setIsSubmittingClass] = useState<boolean>(false);
+  const [isSubmittingStudent, setIsSubmittingStudent] = useState<boolean>(false);
+  const [isSubmittingBulk, setIsSubmittingBulk] = useState<boolean>(false);
+  const [isProcessingConfirm, setIsProcessingConfirm] = useState<boolean>(false);
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     type: 'delete_class' | 'delete_student' | 'reset_attempt' | 'auto_sbd';
@@ -138,8 +144,9 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
   // Handle Save Class
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!classNameInput.trim()) return;
+    if (!classNameInput.trim() || isSubmittingClass) return;
 
+    setIsSubmittingClass(true);
     try {
       const res = await OnlineExamService.saveClass({
         name: classNameInput.trim(),
@@ -158,9 +165,12 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
         if (res.class?.id) {
           setSelectedClassId(res.class.id);
         }
+        showToast('success', `Đã tạo lớp ${classNameInput.trim()} thành công.`);
       }
     } catch (err: any) {
       showToast('error', 'Lỗi khi tạo lớp: ' + (err.message || 'Không thể tạo lớp'));
+    } finally {
+      setIsSubmittingClass(false);
     }
   };
 
@@ -223,7 +233,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
   // Handle Save (Create / Edit) Single Student
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentClass || !studentNameInput.trim()) return;
+    if (!currentClass || !studentNameInput.trim() || isSubmittingStudent) return;
 
     let sbd = studentSbdInput.trim();
     if (!sbd) {
@@ -250,6 +260,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
       return;
     }
 
+    setIsSubmittingStudent(true);
     try {
       const studentPayload: any = {
         classId: currentClass.id,
@@ -284,13 +295,15 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
       }
     } catch (err: any) {
       showToast('error', 'Lỗi khi lưu thông tin học sinh: ' + err.message);
+    } finally {
+      setIsSubmittingStudent(false);
     }
   };
 
   // Handle Bulk Import Students
   const handleBulkImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentClass || !bulkText.trim()) return;
+    if (!currentClass || !bulkText.trim() || isSubmittingBulk) return;
 
     const lines = bulkText
       .split('\n')
@@ -299,6 +312,7 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
 
     if (lines.length === 0) return;
 
+    setIsSubmittingBulk(true);
     const newStudents: any[] = [];
     const cleanCls = currentClass.name.replace(/\s+/g, '').toUpperCase();
 
@@ -358,6 +372,8 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
       }
     } catch (err: any) {
       showToast('error', 'Lỗi khi nhập danh sách học sinh: ' + err.message);
+    } finally {
+      setIsSubmittingBulk(false);
     }
   };
 
@@ -404,12 +420,12 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
 
   // Execute Confirmation Action
   const executeConfirmAction = async () => {
-    if (!confirmModal) return;
+    if (!confirmModal || isProcessingConfirm) return;
     const { type, payload } = confirmModal;
-    setConfirmModal(null);
+    setIsProcessingConfirm(true);
 
-    if (type === 'delete_class') {
-      try {
+    try {
+      if (type === 'delete_class') {
         const res = await OnlineExamService.deleteClass(payload.classId, payload.className);
         if (res.success) {
           const remaining = classes.filter((c) => c.id !== payload.classId);
@@ -420,71 +436,63 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
           await loadClassesAndStudents();
           showToast('success', `Đã xóa thành công lớp ${payload.className} cùng toàn bộ danh sách học sinh.`);
         }
-      } catch (err: any) {
-        showToast('error', 'Lỗi khi xóa lớp: ' + err.message);
-      }
-    } else if (type === 'delete_student') {
-      try {
+      } else if (type === 'delete_student') {
         const res = await OnlineExamService.deleteStudent(payload.studentId);
         if (res.success) {
           await loadClassesAndStudents();
           showToast('success', `Đã xóa học sinh ${payload.name}.`);
         }
-      } catch (err: any) {
-        showToast('error', 'Lỗi khi xóa học sinh: ' + err.message);
-      }
-    } else if (type === 'reset_attempt') {
-      try {
+      } else if (type === 'reset_attempt') {
         const res = await OnlineExamService.resetStudentSession({ sbd: payload.sbd, studentName: payload.name });
         if (res.success) {
           showToast('success', res.message || `Đã reset lượt làm bài cho học sinh ${payload.name} (SBD: ${payload.sbd}).`);
         }
-      } catch (err: any) {
-        showToast('error', 'Thông báo: ' + (err.message || 'Không tìm thấy lượt thi nào của SBD này.'));
-      }
-    } else if (type === 'auto_sbd') {
-      if (!currentClass) return;
-      const prefix =
-        sbdPrefixMode === 'CLASS'
-          ? currentClass.name.replace(/\s+/g, '').toUpperCase()
-          : sbdPrefixMode === 'SBD'
-          ? 'SBD'
-          : (customPrefix.trim() || 'HS').toUpperCase();
+      } else if (type === 'auto_sbd') {
+        if (currentClass) {
+          const prefix =
+            sbdPrefixMode === 'CLASS'
+              ? currentClass.name.replace(/\s+/g, '').toUpperCase()
+              : sbdPrefixMode === 'SBD'
+              ? 'SBD'
+              : (customPrefix.trim() || 'HS').toUpperCase();
 
-      const takenSet = new Set(
-        allGlobalStudents
-          .filter((s) => !classStudents.some((cs) => cs.id === s.id))
-          .map((s) => (s.sbd ? s.sbd.trim().toUpperCase() : ''))
-          .filter(Boolean)
-      );
+          const takenSet = new Set(
+            allGlobalStudents
+              .filter((s) => !classStudents.some((cs) => cs.id === s.id))
+              .map((s) => (s.sbd ? s.sbd.trim().toUpperCase() : ''))
+              .filter(Boolean)
+          );
 
-      const updatedStudents = classStudents.map((st, idx) => {
-        let candidateIdx = idx + 1;
-        let padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
-        let candidateSbd = `${prefix}${padded}`;
+          const updatedStudents = classStudents.map((st, idx) => {
+            let candidateIdx = idx + 1;
+            let padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+            let candidateSbd = `${prefix}${padded}`;
 
-        while (takenSet.has(candidateSbd)) {
-          candidateIdx++;
-          padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
-          candidateSbd = `${prefix}${padded}`;
+            while (takenSet.has(candidateSbd)) {
+              candidateIdx++;
+              padded = candidateIdx < 10 ? `0${candidateIdx}` : `${candidateIdx}`;
+              candidateSbd = `${prefix}${padded}`;
+            }
+            takenSet.add(candidateSbd);
+
+            return {
+              ...st,
+              sbd: candidateSbd,
+            };
+          });
+
+          const res = await OnlineExamService.saveStudents(updatedStudents);
+          if (res.success) {
+            await loadClassesAndStudents();
+            showToast('success', `Đã cập nhật tự động SBD cho ${classStudents.length} học sinh lớp ${currentClass.name}!`);
+          }
         }
-        takenSet.add(candidateSbd);
-
-        return {
-          ...st,
-          sbd: candidateSbd,
-        };
-      });
-
-      try {
-        const res = await OnlineExamService.saveStudents(updatedStudents);
-        if (res.success) {
-          await loadClassesAndStudents();
-          showToast('success', `Đã cập nhật tự động SBD cho ${classStudents.length} học sinh lớp ${currentClass.name}!`);
-        }
-      } catch (err: any) {
-        showToast('error', 'Lỗi khi tự động đánh SBD: ' + err.message);
       }
+      setConfirmModal(null);
+    } catch (err: any) {
+      showToast('error', 'Lỗi khi thực hiện thao tác: ' + (err.message || 'Thao tác thất bại'));
+    } finally {
+      setIsProcessingConfirm(false);
     }
   };
 
@@ -937,16 +945,27 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
               <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
+                  disabled={isSubmittingClass}
                   onClick={() => setShowAddClassModal(false)}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm"
+                  className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md"
+                  disabled={isSubmittingClass}
+                  className={`px-5 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md flex items-center gap-2 cursor-pointer ${
+                    isSubmittingClass ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
                 >
-                  Tạo Lớp
+                  {isSubmittingClass ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang tạo lớp...</span>
+                    </>
+                  ) : (
+                    <span>Tạo Lớp</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1101,24 +1120,32 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
                 <div className="flex justify-end gap-3 pt-3">
                   <button
                     type="button"
+                    disabled={isSubmittingStudent}
                     onClick={() => {
                       setShowAddStudentModal(false);
                       setEditingStudent(null);
                     }}
-                    className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm"
+                    className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Hủy
                   </button>
                   <button
                     type="submit"
-                    disabled={!!duplicateConflict}
-                    className={`px-5 py-2.5 rounded-2xl font-bold text-sm shadow-md transition-all ${
-                      duplicateConflict
+                    disabled={!!duplicateConflict || isSubmittingStudent}
+                    className={`px-5 py-2.5 rounded-2xl font-bold text-sm shadow-md transition-all flex items-center gap-2 ${
+                      duplicateConflict || isSubmittingStudent
                         ? 'bg-slate-400 dark:bg-slate-700 text-slate-200 cursor-not-allowed opacity-60'
                         : 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer'
                     }`}
                   >
-                    {editingStudent ? 'Cập Nhật Thông Tin' : 'Thêm Học Sinh'}
+                    {isSubmittingStudent ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>{editingStudent ? 'Đang cập nhật...' : 'Đang thêm...'}</span>
+                      </>
+                    ) : (
+                      <span>{editingStudent ? 'Cập Nhật Thông Tin' : 'Thêm Học Sinh'}</span>
+                    )}
                   </button>
                 </div>
               </form>
@@ -1139,8 +1166,9 @@ export const ClassManagementView: React.FC<ClassManagementViewProps> = ({ onNavi
                 </h3>
               </div>
               <button
+                disabled={isSubmittingBulk}
                 onClick={() => setShowBulkImportModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-sm"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white font-bold text-sm disabled:opacity-50"
               >
                 ✕
               </button>
@@ -1178,16 +1206,27 @@ Ví dụ định dạng 2 (kèm SBD):
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
+                  disabled={isSubmittingBulk}
                   onClick={() => setShowBulkImportModal(false)}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm"
+                  className="px-4 py-2.5 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md"
+                  disabled={isSubmittingBulk}
+                  className={`px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md flex items-center gap-2 cursor-pointer ${
+                    isSubmittingBulk ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
                 >
-                  Nhập Hàng Loạt
+                  {isSubmittingBulk ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang nhập...</span>
+                    </>
+                  ) : (
+                    <span>Nhập Hàng Loạt</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1229,20 +1268,37 @@ Ví dụ định dạng 2 (kèm SBD):
 
             <div className="flex items-center justify-end space-x-2 pt-2">
               <button
+                disabled={isProcessingConfirm}
                 onClick={() => setConfirmModal(null)}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Hủy bỏ
               </button>
               <button
+                disabled={isProcessingConfirm}
                 onClick={executeConfirmAction}
-                className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs transition-colors shadow-xs cursor-pointer ${
+                className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs transition-colors shadow-xs flex items-center gap-2 cursor-pointer ${
                   confirmModal.type === 'delete_class' || confirmModal.type === 'delete_student'
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : 'bg-amber-600 hover:bg-amber-700'
-                }`}
+                } ${isProcessingConfirm ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
-                {confirmModal.buttonText || 'Đồng ý'}
+                {isProcessingConfirm ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>
+                      {confirmModal.type === 'delete_class'
+                        ? 'Đang xóa lớp...'
+                        : confirmModal.type === 'delete_student'
+                        ? 'Đang xóa...'
+                        : confirmModal.type === 'auto_sbd'
+                        ? 'Đang sinh SBD...'
+                        : 'Đang xử lý...'}
+                    </span>
+                  </>
+                ) : (
+                  <span>{confirmModal.buttonText || 'Đồng ý'}</span>
+                )}
               </button>
             </div>
           </div>
