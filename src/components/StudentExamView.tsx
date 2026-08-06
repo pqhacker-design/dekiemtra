@@ -1157,11 +1157,35 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
     const formatAnswerVal = (val: any) => {
       if (val === null || val === undefined) return 'Chưa trả lời';
       if (typeof val === 'object') {
-        return Object.entries(val)
+        const entries = Object.entries(val).filter(([_, v]) => v !== undefined && v !== null && v !== '');
+        if (entries.length === 0) return 'Chưa trả lời';
+        return entries
           .map(([k, v]) => `${k.toUpperCase()}: ${v ? 'Đúng' : 'Sai'}`)
           .join(' | ');
       }
       return String(val);
+    };
+
+    const isQuestionAnswered = (studentAns: any) => {
+      if (studentAns === null || studentAns === undefined) return false;
+      if (typeof studentAns === 'string') {
+        const trimmed = studentAns.trim();
+        return trimmed !== '' && trimmed !== 'Chưa trả lời';
+      }
+      if (typeof studentAns === 'number' || typeof studentAns === 'boolean') {
+        return true;
+      }
+      if (typeof studentAns === 'object') {
+        const keys = Object.keys(studentAns);
+        if (keys.length === 0) return false;
+        return keys.some(
+          (k) =>
+            studentAns[k] !== undefined &&
+            studentAns[k] !== null &&
+            studentAns[k] !== ''
+        );
+      }
+      return false;
     };
 
     return (
@@ -1243,60 +1267,91 @@ export const StudentExamView: React.FC<StudentExamViewProps> = ({
                 </span>
               </div>
               <div className="max-h-96 overflow-y-auto space-y-3 p-3 bg-slate-900/80 rounded-2xl border border-slate-700 text-xs shadow-inner">
-                {examResult.detailedGrading.map((item: any, i: number) => (
-                  <div
-                    key={i}
-                    className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
-                      item.isCorrect
-                        ? 'bg-emerald-950/20 border-emerald-800/50'
-                        : 'bg-rose-950/20 border-rose-800/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-bold">
-                      <span className="text-teal-300 font-extrabold text-sm">
-                        Câu {item.questionNumber}:
-                      </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
-                          item.isCorrect
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                        }`}
-                      >
-                        {item.isCorrect ? '✓ Đúng' : '✗ Chưa chính xác'} ({item.points}/{item.maxPoints}đ)
-                      </span>
-                    </div>
+                {examResult.detailedGrading.map((item: any, i: number) => {
+                  const answered = isQuestionAnswered(item.studentAnswer);
 
-                    <div className="text-slate-200 font-medium text-xs leading-relaxed">
-                      <MathText content={item.content || item.questionContent || ''} />
-                    </div>
+                  return (
+                    <div
+                      key={i}
+                      className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
+                        !answered
+                          ? 'bg-slate-900/60 border-slate-700/80'
+                          : item.isCorrect
+                          ? 'bg-emerald-950/20 border-emerald-800/50'
+                          : 'bg-rose-950/20 border-rose-800/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="text-teal-300 font-extrabold text-sm">
+                          Câu {item.questionNumber}:
+                        </span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                            !answered
+                              ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                              : item.isCorrect
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                          }`}
+                        >
+                          {!answered
+                            ? '— Chưa trả lời'
+                            : item.isCorrect
+                            ? '✓ Đúng'
+                            : '✗ Chưa chính xác'}{' '}
+                          ({item.points}/{item.maxPoints}đ)
+                        </span>
+                      </div>
 
-                    <div className="pt-2 text-[11px] space-y-1.5 bg-slate-900/90 p-3 rounded-xl border border-slate-700/80">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Đã chọn:</span>
-                        <div className={`font-bold ${item.isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          <MathText content={formatAnswerVal(item.studentAnswer)} />
-                        </div>
+                      <div className="text-slate-200 font-medium text-xs leading-relaxed">
+                        <MathText content={item.content || item.questionContent || ''} />
                       </div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-slate-400 font-medium shrink-0">Đáp án chuẩn:</span>
-                        <div className="font-extrabold text-emerald-400">
-                          <MathText content={formatAnswerVal(item.correctAnswer)} />
-                        </div>
-                      </div>
-                      {item.explanation && (
-                        <div className="pt-2 text-teal-300 border-t border-slate-800 space-y-1 mt-2">
-                          <span className="font-bold text-slate-400 block text-[10px] uppercase tracking-wider">
-                            Lời giải chi tiết:
-                          </span>
-                          <div className="text-slate-200 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
-                            <MathText content={item.explanation} />
+
+                      <div className="pt-2 text-[11px] space-y-1.5 bg-slate-900/90 p-3 rounded-xl border border-slate-700/80">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-slate-400 font-medium shrink-0">Đã chọn:</span>
+                          <div
+                            className={`font-bold ${
+                              !answered
+                                ? 'text-slate-400 italic'
+                                : item.isCorrect
+                                ? 'text-emerald-400'
+                                : 'text-rose-400'
+                            }`}
+                          >
+                            <MathText content={formatAnswerVal(item.studentAnswer)} />
                           </div>
                         </div>
-                      )}
+
+                        {answered ? (
+                          <>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-slate-400 font-medium shrink-0">Đáp án chuẩn:</span>
+                              <div className="font-extrabold text-emerald-400">
+                                <MathText content={formatAnswerVal(item.correctAnswer)} />
+                              </div>
+                            </div>
+                            {item.explanation && (
+                              <div className="pt-2 text-teal-300 border-t border-slate-800 space-y-1 mt-2">
+                                <span className="font-bold text-slate-400 block text-[10px] uppercase tracking-wider">
+                                  Lời giải chi tiết:
+                                </span>
+                                <div className="text-slate-200 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
+                                  <MathText content={item.explanation} />
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-amber-400/90 italic text-[11px] pt-1 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 inline-block"></span>
+                            <span>Không hiển thị đáp án chuẩn và lời giải cho câu hỏi chưa trả lời.</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
