@@ -447,7 +447,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               <span>Công văn 7991/BGDĐT • GDPT 2018</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Khởi Tạo Đề Kiểm Tra Chuẩn Quốc Gia
+              Khởi Tạo Đề Kiểm Tra
             </h1>
             <p className="text-teal-100/80 text-sm mt-1 max-w-2xl">
               Hệ thống AI tự động sinh Ma trận đề, Bảng đặc tả, Đề thi, Đáp án chi tiết và Rubric chấm bài.
