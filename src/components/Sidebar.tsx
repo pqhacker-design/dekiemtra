@@ -75,7 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'generator', label: 'Tạo đề kiểm tra', icon: PlusCircle, badge: 'CV 7991', glowColor: 'cyan' },
     { id: 'classes', label: 'Quản lý Lớp & HS', icon: School, badge: 'LỚP & HS', glowColor: 'indigo' },
     { id: 'online_bank', label: 'Kho đề trực tuyến', icon: QrCode, badge: 'ONLINE', glowColor: 'emerald' },
-    { id: 'student_results', label: 'Kết quả học sinh', icon: UserCheck, glowColor: 'cyan' },
+    { id: 'student_results', label: 'Kết quả học sinh', icon: UserCheck, badge: 'ONLINE', glowColor: 'cyan' },
     { id: 'student_exam', label: 'Học sinh làm bài', icon: Laptop, badge: 'ONLINE', glowColor: 'indigo' },
     { id: 'matrix', label: 'Ma trận đề thi', icon: Grid },
     { id: 'specification', label: 'Bảng đặc tả YCCĐ', icon: Layers },
