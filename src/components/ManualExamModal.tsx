@@ -342,7 +342,7 @@ export const ManualExamModal: React.FC<ManualExamModalProps> = ({
                 Tạo Đề Thi Trực Tuyến Thủ Công
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Chọn lọc câu hỏi từ Ngân hàng và điều chỉnh điểm số từng câu trước khi phát hành đề thi
+                Chọn lọc câu hỏi từ Ngân hàng và điều chỉnh điểm số cho đề
               </p>
             </div>
           </div>

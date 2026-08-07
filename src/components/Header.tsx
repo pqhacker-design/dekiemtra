@@ -33,11 +33,20 @@ export const Header: React.FC<HeaderProps> = ({
   
   // Change Password Modal State
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState('');
   const [changingPass, setChangingPass] = useState(false);
+
+  const resetChangePasswordForm = () => {
+    setOldPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPassError('');
+    setPassSuccess('');
+  };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -60,8 +69,18 @@ export const Header: React.FC<HeaderProps> = ({
     setPassError('');
     setPassSuccess('');
 
+    if (!oldPassword || !oldPassword.trim()) {
+      setPassError('Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
+
     if (!newPassword || newPassword.trim().length < 4) {
       setPassError('Mật khẩu mới phải có ít nhất 4 ký tự.');
+      return;
+    }
+
+    if (oldPassword.trim() === newPassword.trim()) {
+      setPassError('Mật khẩu mới không được trùng với mật khẩu hiện tại.');
       return;
     }
 
@@ -72,13 +91,11 @@ export const Header: React.FC<HeaderProps> = ({
 
     setChangingPass(true);
     try {
-      await changePassword(newPassword.trim());
+      await changePassword(oldPassword.trim(), newPassword.trim());
       setPassSuccess('Đã đổi mật khẩu thành công!');
       setTimeout(() => {
         setShowChangePasswordModal(false);
-        setNewPassword('');
-        setConfirmPassword('');
-        setPassSuccess('');
+        resetChangePasswordForm();
       }, 1500);
     } catch (err: any) {
       setPassError(err.message || 'Lỗi khi đổi mật khẩu.');
@@ -311,7 +328,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <h3 className="font-extrabold text-white text-base">Đổi Mật Khẩu Tài Khoản</h3>
               </div>
               <button
-                onClick={() => setShowChangePasswordModal(false)}
+                onClick={() => {
+                  setShowChangePasswordModal(false);
+                  resetChangePasswordForm();
+                }}
                 className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
               >
                 ✕
@@ -332,6 +352,18 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>{passSuccess}</span>
                 </div>
               )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-300">Mật khẩu hiện tại (*)</label>
+                <input
+                  type="password"
+                  required
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu hiện tại"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-indigo-500"
+                />
+              </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300">Mật khẩu mới (*)</label>
@@ -360,7 +392,10 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex items-center space-x-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowChangePasswordModal(false)}
+                  onClick={() => {
+                    setShowChangePasswordModal(false);
+                    resetChangePasswordForm();
+                  }}
                   className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
                 >
                   Hủy
