@@ -127,29 +127,31 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right: Action Buttons & User Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3">
         {currentExamPackage && (
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {onOpenPublishModal && (
               <button
                 onClick={onOpenPublishModal}
-                className="btn-glow-emerald text-white rounded-2xl font-black text-[11px] px-4 py-2 flex items-center gap-1.5 cursor-pointer shadow-md"
+                className="btn-glow-emerald text-white rounded-2xl font-black text-[10px] sm:text-[11px] px-2.5 sm:px-3.5 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-1.5 cursor-pointer shadow-md shrink-0"
                 title="Lưu & Cấp Mã Thi Online Cho Học Sinh"
               >
-                <Share2 className="w-3.5 h-3.5 text-amber-300" />
-                <span>Cấp Mã Thi Online</span>
+                <Share2 className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                <span className="hidden md:inline">Cấp Mã Thi Online</span>
+                <span className="md:hidden">Cấp Mã</span>
               </button>
             )}
             {onExportWord && (
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative shrink-0" ref={dropdownRef}>
                 <button
                   onClick={() => setIsWordDropdownOpen(!isWordDropdownOpen)}
-                  className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-2xl font-bold text-[11px] px-3.5 py-2 transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-2xl font-bold text-[10px] sm:text-[11px] px-2.5 sm:px-3.5 py-1.5 sm:py-2 transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer"
                   title="Tùy chọn xuất Word (.docx)"
                 >
-                  <FileCode className="w-3.5 h-3.5" />
-                  <span>Xuất Word</span>
-                  <ChevronDown className="w-3 h-3 text-blue-500" />
+                  <FileCode className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">Xuất Word</span>
+                  <span className="sm:hidden">Word</span>
+                  <ChevronDown className="w-3 h-3 text-blue-500 shrink-0" />
                 </button>
 
                 {isWordDropdownOpen && (
@@ -207,27 +209,29 @@ export const Header: React.FC<HeaderProps> = ({
             {onExportExcel && (
               <button
                 onClick={onExportExcel}
-                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-2xl font-bold text-[11px] px-3.5 py-2 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-2xl font-bold text-[10px] sm:text-[11px] px-2.5 sm:px-3.5 py-1.5 sm:py-2 transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer shrink-0"
                 title="Xuất Excel (.xlsx)"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>Xuất Excel</span>
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Xuất Excel</span>
+                <span className="sm:hidden">Excel</span>
               </button>
             )}
             {onExportPdf && (
               <button
                 onClick={onExportPdf}
-                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 rounded-2xl font-bold text-[11px] px-3.5 py-2 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 rounded-2xl font-bold text-[10px] sm:text-[11px] px-2.5 sm:px-3.5 py-1.5 sm:py-2 transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer shrink-0"
                 title="In hoặc Xuất PDF"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>In / PDF</span>
+                <Download className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">In / PDF</span>
+                <span className="sm:hidden">PDF</span>
               </button>
             )}
           </div>
         )}
 
-        <div className="h-7 w-[1px] bg-slate-200/80 dark:bg-slate-800/80 mx-1 hidden sm:block"></div>
+        <div className="h-6 w-[1px] bg-slate-200/80 dark:bg-slate-800/80 mx-0.5"></div>
 
         {/* User Profile & Role Dropdown Menu */}
         <div className="relative" ref={userMenuRef}>
