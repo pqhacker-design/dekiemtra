@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { ExamPackage, QuestionBankItem, getSpecRowQuestionDetails } from '../types';
-import { cleanLatexForDocx } from './exportDocx';
+import { cleanLatexForDocx } from './latexUtils';
 
 export class ExportExcel {
   /**

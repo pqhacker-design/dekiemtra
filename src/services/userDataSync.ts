@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { AppSettings, ExamPackage, QuestionBankItem } from '../types';
-import { defaultSettings, sampleQuestionBank } from './storageEngine';
+import { defaultSettings, sampleQuestionBank } from './defaults';
 
 export interface UserDataPayload {
   settings: AppSettings;
