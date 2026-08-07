@@ -160,9 +160,10 @@ export class ExportPdf {
         }
 
         const tag = getCognitiveTag(q.cognitiveLevel, q.partType);
+        const cleanContent = (q.content || '').replace(/^\[(NB|TH|VD|VDC)_(TN|TF|TL)\]\s*:?\s*/i, '');
         htmlContent += `
           <div class="question-box">
-            <span class="question-num">Câu ${q.number} ${tag ? `<span style="color:#d97706; font-size: 11pt;">${tag}</span>` : ''}:</span> ${autoWrapUnwrappedLatex(q.content)}
+            <span class="question-num">Câu ${q.number} ${tag ? `<span style="color:#d97706; font-size: 11pt;">${tag}</span>` : ''}:</span> ${autoWrapUnwrappedLatex(cleanContent)}
         `;
 
         if (q.partType === 'PART1' && q.options) {
