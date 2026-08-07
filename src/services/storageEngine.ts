@@ -72,7 +72,31 @@ export class StorageEngine {
     try {
       const key = this.getKey(STORAGE_KEYS.EXAM_HISTORY);
       const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : [];
+      let items: ExamPackage[] = data ? JSON.parse(data) : [];
+
+      // Fallback check if user key returned empty but base key has items
+      if (items.length === 0 && this.currentUserId) {
+        const baseData = localStorage.getItem(STORAGE_KEYS.EXAM_HISTORY);
+        if (baseData) {
+          try {
+            const baseItems: ExamPackage[] = JSON.parse(baseData);
+            if (baseItems.length > 0) items = baseItems;
+          } catch {}
+        }
+      }
+
+      // Also combine with UserDataSync local data if available
+      if (this.currentUserId) {
+        const localUserPayload = UserDataSync.getLocalUserData(this.currentUserId);
+        if (localUserPayload.examHistory && localUserPayload.examHistory.length > 0) {
+          const map = new Map<string, ExamPackage>();
+          items.forEach((e) => e && e.id && map.set(e.id, e));
+          localUserPayload.examHistory.forEach((e) => e && e.id && map.set(e.id, e));
+          items = Array.from(map.values());
+        }
+      }
+
+      return items;
     } catch (e) {
       console.error('Lỗi đọc lịch sử đề thi:', e);
       return [];
