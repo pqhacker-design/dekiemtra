@@ -32,9 +32,9 @@ export class UserDataSync {
   static getStorageKeys(userId: string) {
     const cleanId = userId ? userId.replace(/[^a-zA-Z0-9_]/g, '_') : 'guest';
     return {
-      SETTINGS: `aitest_settings_${cleanId}`,
-      EXAM_HISTORY: `aitest_exam_history_${cleanId}`,
-      QUESTION_BANK: `aitest_question_bank_${cleanId}`,
+      SETTINGS: `aitest_settings_v1_${cleanId}`,
+      EXAM_HISTORY: `aitest_exam_history_v1_${cleanId}`,
+      QUESTION_BANK: `aitest_question_bank_v1_${cleanId}`,
       CLASSES: `aitest_online_classes_store_${cleanId}`,
       STUDENTS: `aitest_online_students_store_${cleanId}`,
       ONLINE_EXAMS: `aitest_online_exams_store_${cleanId}`,
