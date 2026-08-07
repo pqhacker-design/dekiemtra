@@ -108,11 +108,37 @@ export class UserDataSync {
   }
 
   /**
-   * Load user data from Firestore with LocalStorage cache fallback
+   * Helper to merge remote array with local array by unique ID
+   */
+  private static mergeArrays<T>(remote: T[] | undefined, localItems: T[] | undefined, getId: (item: T) => string): T[] {
+    const map = new Map<string, T>();
+    (remote || []).forEach((item) => {
+      if (!item) return;
+      const id = getId(item);
+      if (id) map.set(id, item);
+    });
+    (localItems || []).forEach((item) => {
+      if (!item) return;
+      const id = getId(item);
+      if (id) {
+        if (!map.has(id)) {
+          map.set(id, item);
+        } else {
+          map.set(id, { ...map.get(id)!, ...item });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }
+
+  /**
+   * Load user data from Firestore with LocalStorage cache fallback and array merging
    */
   static async loadUserData(userId: string): Promise<UserDataPayload> {
+    const local = userId ? this.getLocalUserData(userId) : { settings: defaultSettings, examHistory: [], questionBank: sampleQuestionBank, classes: [], students: [], onlineExams: [] };
+
     if (!userId) {
-      return { settings: defaultSettings, examHistory: [], questionBank: sampleQuestionBank, classes: [], students: [], onlineExams: [] };
+      return { settings: defaultSettings, examHistory: local.examHistory || [], questionBank: local.questionBank || sampleQuestionBank, classes: [], students: [], onlineExams: [] };
     }
 
     const docRef = doc(db, USER_DATA_COLLECTION, userId);
@@ -122,12 +148,14 @@ export class UserDataSync {
 
       if (docSnap.exists()) {
         const remoteData = docSnap.data() as UserDataPayload;
-        const settings = { ...defaultSettings, ...(remoteData.settings || {}) };
-        const examHistory = Array.isArray(remoteData.examHistory) ? remoteData.examHistory : [];
-        const questionBank = Array.isArray(remoteData.questionBank) ? remoteData.questionBank : sampleQuestionBank;
-        const classes = Array.isArray(remoteData.classes) ? remoteData.classes : [];
-        const students = Array.isArray(remoteData.students) ? remoteData.students : [];
-        const onlineExams = Array.isArray(remoteData.onlineExams) ? remoteData.onlineExams : [];
+        const settings = { ...defaultSettings, ...(remoteData.settings || {}), ...(local.settings || {}) };
+        
+        // Combine remote with local arrays to ensure no newly generated local data is lost
+        const examHistory = this.mergeArrays(remoteData.examHistory, local.examHistory, (e) => e.id);
+        const questionBank = this.mergeArrays(remoteData.questionBank, local.questionBank, (q) => q.id);
+        const classes = this.mergeArrays(remoteData.classes, local.classes, (c) => c.id);
+        const students = this.mergeArrays(remoteData.students, local.students, (s) => s.sbd || s.id);
+        const onlineExams = this.mergeArrays(remoteData.onlineExams, local.onlineExams, (e) => e.code || e.id);
 
         const mergedPayload: UserDataPayload = {
           settings,
@@ -136,10 +164,10 @@ export class UserDataSync {
           classes,
           students,
           onlineExams,
-          updatedAt: remoteData.updatedAt,
+          updatedAt: remoteData.updatedAt || new Date().toISOString(),
         };
 
-        // Cache locally for this user
+        // Cache merged payload locally
         this.saveLocalUserData(userId, mergedPayload);
 
         return mergedPayload;
@@ -148,11 +176,7 @@ export class UserDataSync {
       console.warn(`Lỗi đọc Firestore user_data cho ${userId}:`, err);
     }
 
-    // Fallback if doc does not exist yet or offline:
-    // Check local storage for this user
-    const local = this.getLocalUserData(userId);
-
-    // Initial default payload for new user account
+    // Initial default payload for user account
     const initialPayload: UserDataPayload = {
       settings: local.settings || defaultSettings,
       examHistory: local.examHistory || [],
@@ -180,16 +204,31 @@ export class UserDataSync {
   static async saveUserData(userId: string, updates: Partial<UserDataPayload>): Promise<void> {
     if (!userId) return;
 
-    // 1. Update Local Storage cache immediately
-    this.saveLocalUserData(userId, updates);
+    // 1. Update Local Storage cache immediately with merged items
+    const local = this.getLocalUserData(userId);
+    const updatedPayload: UserDataPayload = {
+      settings: updates.settings ? { ...local.settings, ...updates.settings } : local.settings,
+      examHistory: updates.examHistory ? this.mergeArrays(updates.examHistory, local.examHistory, (e) => e.id) : local.examHistory,
+      questionBank: updates.questionBank ? this.mergeArrays(updates.questionBank, local.questionBank, (q) => q.id) : local.questionBank,
+      classes: updates.classes ? this.mergeArrays(updates.classes, local.classes, (c) => c.id) : local.classes,
+      students: updates.students ? this.mergeArrays(updates.students, local.students, (s) => s.sbd || s.id) : local.students,
+      onlineExams: updates.onlineExams ? this.mergeArrays(updates.onlineExams, local.onlineExams, (e) => e.code || e.id) : local.onlineExams,
+    };
 
-    // 2. Sync to Firestore
+    this.saveLocalUserData(userId, updatedPayload);
+
+    // 2. Sync to Firestore (pruning examHistory array to top 15 most recent to fit in 1MB Firestore doc limit)
     try {
       const docRef = doc(db, USER_DATA_COLLECTION, userId);
+      const firestorePayload = { ...updatedPayload };
+      if (firestorePayload.examHistory && firestorePayload.examHistory.length > 15) {
+        firestorePayload.examHistory = firestorePayload.examHistory.slice(0, 15);
+      }
+
       await setDoc(
         docRef,
         {
-          ...updates,
+          ...firestorePayload,
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -212,16 +251,22 @@ export class UserDataSync {
       (docSnap) => {
         if (docSnap.exists()) {
           const remoteData = docSnap.data() as UserDataPayload;
-          const settings = { ...defaultSettings, ...(remoteData.settings || {}) };
-          const examHistory = Array.isArray(remoteData.examHistory) ? remoteData.examHistory : [];
-          const questionBank = Array.isArray(remoteData.questionBank) ? remoteData.questionBank : sampleQuestionBank;
+          const local = this.getLocalUserData(userId);
+
+          const settings = { ...defaultSettings, ...(remoteData.settings || {}), ...(local.settings || {}) };
+          const examHistory = this.mergeArrays(remoteData.examHistory, local.examHistory, (e) => e.id);
+          const questionBank = this.mergeArrays(remoteData.questionBank, local.questionBank, (q) => q.id);
+          const classes = this.mergeArrays(remoteData.classes, local.classes, (c) => c.id);
+          const students = this.mergeArrays(remoteData.students, local.students, (s) => s.sbd || s.id);
+          const onlineExams = this.mergeArrays(remoteData.onlineExams, local.onlineExams, (e) => e.code || e.id);
 
           const payload: UserDataPayload = {
             settings,
             examHistory,
             questionBank,
-            classes: remoteData.classes || [],
-            students: remoteData.students || [],
+            classes,
+            students,
+            onlineExams,
             updatedAt: remoteData.updatedAt,
           };
 
