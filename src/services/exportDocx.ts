@@ -700,11 +700,58 @@ function processPlainPart(plain: string): string {
   return str;
 }
 
+export function fixCasesLatex(rawText: string): string {
+  if (!rawText) return rawText;
+  let str = rawText;
+
+  // 1. Chuyển các ký hiệu hệ phương trình gõ dạng \{ ... \} có chứa dấu bằng/bất đẳng thức thành \begin{cases} ... \end{cases}
+  str = str.replace(/\\\{\s*([a-zA-Z0-9_\-\+\s\=\<\>\,\;\:\\\(\)\/\cdot\Delta]+?)\s*\\\}/g, (m, inner) => {
+    if (inner.includes('=') || inner.includes('\\le') || inner.includes('\\ge')) {
+      return `\\begin{cases} ${inner} \\end{cases}`;
+    }
+    return m;
+  });
+
+  // 2. Xử lý chuẩn hóa môi trường \begin{cases} ... \end{cases}
+  str = str.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (match, inner) => {
+    let cleanedInner = inner.trim();
+
+    // Sửa trường hợp AI xuất "x + y = 4 \ x - y = 2" (dấu \ lẻ theo sau bởi space) -> "\\ "
+    cleanedInner = cleanedInner.replace(/\\\s+(?=[0-9a-zA-Z\-\+\(\)\{])/g, ' \\\\ ');
+
+    // Nếu đã có double backslash \\ thì giữ nguyên
+    if (cleanedInner.includes('\\\\')) {
+      return `\\begin{cases} ${cleanedInner} \\end{cases}`;
+    }
+
+    // Nếu dùng chấm phẩy hoặc dấu phẩy giữa các phương trình (VD: "x + y = 4; x - y = 2")
+    if (/;|,/.test(cleanedInner)) {
+      cleanedInner = cleanedInner.replace(/([0-9a-zA-Z\)\}\s]+)[;,]\s*([0-9a-zA-Z\-\+]+)/g, '$1 \\\\ $2');
+    }
+
+    // Nếu vẫn chưa có \\, phân tách các phương trình đứng liền kề nhau trên cùng 1 hàng
+    // VD: "x + y = 4 x - y = 2" hoặc "2x - y = 3 4x - 2y = 6" hoặc "3x + 2y = 8 2x - y = 3"
+    if (!cleanedInner.includes('\\\\')) {
+      cleanedInner = cleanedInner.replace(
+        /(=|>|<|\\le|\\ge|\\neq)\s*([\-\+]?\s*[a-zA-Z0-9\(\)\{\}\^\.\/]+(?:\s*[\+\-\*\/]\s*[a-zA-Z0-9\(\)\{\}\^\.\/]+)*)\s+((?:[\-\+]?\s*)?[0-9a-zA-Z\(\)\{\}\\\|\vec]+(?:\s*[\+\-\*\/]\s*[0-9a-zA-Z]+)*\s*(?:=|\\le|\\ge|<|>|\\neq))/g,
+        '$1 $2 \\\\ $3'
+      );
+    }
+
+    return `\\begin{cases} ${cleanedInner} \\end{cases}`;
+  });
+
+  return str;
+}
+
 export function autoWrapUnwrappedLatex(text: string): string {
   if (!text) return text;
 
-  // Xóa các dấu $ mồ côi dán trực tiếp vào sau lệnh LaTeX
-  let cleanedText = text.replace(/(\\[a-zA-Z]+(\{[^{}]*\})*)\$/g, '$1');
+  // 1. Tự động sửa và chuẩn hóa cú pháp hệ phương trình trước tiên
+  let cleanedText = fixCasesLatex(text);
+
+  // 2. Xóa các dấu $ mồ côi dán trực tiếp vào sau lệnh LaTeX
+  cleanedText = cleanedText.replace(/(\\[a-zA-Z]+(\{[^{}]*\})*)\$/g, '$1');
 
   // Tách text thành các khối đã bọc sẵn ($...$, $$...$$, \(...\), \[...\]) và phần text thường
   const mathBlockRegex = /(\$\$.*?\$\$|\$.*?\$|\\\[.*?\\\]|\\\([^\)]*\\\))/gs;
@@ -716,7 +763,8 @@ export function autoWrapUnwrappedLatex(text: string): string {
     if (match.index > lastIdx) {
       parts.push(processPlainPart(cleanedText.substring(lastIdx, match.index)));
     }
-    parts.push(match[0]); // Khối math đã bọc sẵn
+    // Đảm bảo khối math bọc sẵn có \begin{cases} cũng được sửa nội dung bên trong
+    parts.push(fixCasesLatex(match[0]));
     lastIdx = mathBlockRegex.lastIndex;
   }
   if (lastIdx < cleanedText.length) {
