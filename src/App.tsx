@@ -75,9 +75,7 @@ export default function App() {
         setExamHistory(data.examHistory);
         setQuestionBank(data.questionBank);
         if (data.examHistory && data.examHistory.length > 0) {
-          setCurrentExamPackage(data.examHistory[0]);
-        } else {
-          setCurrentExamPackage(null);
+          setCurrentExamPackage((prev) => prev || data.examHistory[0]);
         }
       });
 
