@@ -446,6 +446,7 @@ export class OnlineExamService {
           warnTabSwitch: true,
           tabSwitchLimit: 3,
         },
+        createdBy: e.createdBy || userId,
       };
     });
 
