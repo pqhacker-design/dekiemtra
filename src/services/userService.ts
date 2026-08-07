@@ -208,13 +208,36 @@ export const userService = {
   /**
    * Change user password
    */
-  async changePassword(docId: string, newPassword: string): Promise<void> {
-    if (!newPassword || newPassword.trim().length < 4) {
+  async changePassword(docId: string, oldPassword: string, newPassword: string): Promise<void> {
+    const cleanOld = (oldPassword || '').trim();
+    const cleanNew = (newPassword || '').trim();
+
+    if (!cleanOld) {
+      throw new Error('Vui lòng nhập mật khẩu hiện tại.');
+    }
+    if (!cleanNew || cleanNew.length < 4) {
       throw new Error('Mật khẩu mới phải có ít nhất 4 ký tự.');
     }
+
     const userDocRef = doc(db, USERS_COLLECTION, docId);
+    const snap = await getDoc(userDocRef);
+    if (!snap.exists()) {
+      throw new Error('Không tìm thấy thông tin tài khoản.');
+    }
+
+    const data = snap.data() as AppUser;
+    const currentPass = data.password || (data.username === 'admin' ? 'admin123' : '');
+
+    if (currentPass !== cleanOld) {
+      throw new Error('Mật khẩu hiện tại không chính xác.');
+    }
+
+    if (currentPass === cleanNew) {
+      throw new Error('Mật khẩu mới không được trùng với mật khẩu hiện tại.');
+    }
+
     await updateDoc(userDocRef, {
-      password: newPassword.trim(),
+      password: cleanNew,
       updatedAt: new Date().toISOString(),
     });
   },
