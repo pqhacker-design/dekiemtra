@@ -145,16 +145,8 @@ export class OnlineExamService {
     try {
       const keys = this.getStorageKeys();
       const data = localStorage.getItem(keys.EXAMS);
-      let items = data ? JSON.parse(data) : [];
-      if (items.length === 0) {
-        const baseData = localStorage.getItem('aitest_online_exams_store');
-        if (baseData) {
-          try {
-            items = JSON.parse(baseData);
-          } catch {}
-        }
-      }
-      return items;
+      if (!data) return [];
+      return JSON.parse(data);
     } catch {
       return [];
     }
@@ -414,7 +406,6 @@ export class OnlineExamService {
 
   // 2. List all exams for Teacher
   static async listExams() {
-    const userId = this.getActiveUserId();
     let apiExams: OnlineExamItem[] = [];
     try {
       const res = await this.request<{ success: boolean; exams: OnlineExamItem[] }>('/api/exam/list');
@@ -455,19 +446,18 @@ export class OnlineExamService {
           warnTabSwitch: true,
           tabSwitchLimit: 3,
         },
-        createdBy: e.createdBy || userId,
       };
     });
 
     let firestoreExams: (OnlineExamItem & { createdBy?: string })[] = [];
+    const userId = this.getActiveUserId();
     try {
       const colRef = collection(db, 'published_exams');
       const snap = await getDocs(colRef);
       snap.forEach((d) => {
         const e = d.data() as any;
         if (e && e.code) {
-          const created = e.createdBy || '';
-          if (!created || created === userId || userId === 'guest' || created.includes(userId) || userId.includes(created)) {
+          if (e.createdBy === userId || (!e.createdBy && userId === 'guest')) {
             const pkg = e.examPackage || {};
             const qCount = pkg.exams?.[0]?.questions?.length || 10;
             firestoreExams.push({
@@ -502,11 +492,13 @@ export class OnlineExamService {
     }
 
     const map = new Map<string, OnlineExamItem>();
-    [...localItems, ...firestoreExams, ...apiExams].forEach((item: any) => {
+    [...apiExams, ...firestoreExams, ...localItems].forEach((item: any) => {
       if (item && item.code) {
-        const key = item.code.trim().toUpperCase();
-        if (!map.has(key)) {
-          map.set(key, item);
+        if (item.createdBy === userId || (!item.createdBy && userId === 'guest')) {
+          const key = item.code.trim().toUpperCase();
+          if (!map.has(key)) {
+            map.set(key, item);
+          }
         }
       }
     });
