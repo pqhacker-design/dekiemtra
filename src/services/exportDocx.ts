@@ -23,7 +23,7 @@ import {
   VerticalAlign,
   WidthType,
 } from 'docx';
-import { ExamMetadata, ExamPackage, Question, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
+import { ExamMetadata, ExamPackage, MatrixRow, Question, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
 import { DiagramEngine } from './diagramEngine';
 
 /**
@@ -647,13 +647,20 @@ function processPlainPart(plain: string): string {
     str = str.replace(/([^$]*)\$([^$]*)$/, '$1$2');
   }
 
-  // 3. Chuẩn hóa phép nhân dấu chấm giữa các số/biến (VD: "25 . 74" hay "25.74" -> "25 \cdot 74")
-  str = str.replace(/(\b[0-9A-Za-z]+)\s*\.\s*([0-9A-Za-z]+\b)/g, (m, p1, p2) => {
-    if (/^\d+$/.test(p1) && /^\d+$/.test(p2) && !m.includes(' ')) {
+  // 3. Chuẩn hóa phép nhân dấu chấm chỉ áp dụng cho 2 chữ số / biến ngắn thuần toán
+  str = str.replace(/(\b[0-9a-z])\s*\.\s*([0-9a-z]\b)/gi, (m, p1, p2) => {
+    if (/^\d+$/.test(p1) && /^\d+$/.test(p2)) {
       return m; // Giữ nguyên số thập phân chuẩn như 3.14
+    }
+    // Tránh biến t.N hay câu tiếng Việt dán liền
+    if (/[A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]/.test(p2)) {
+      return `${p1}. ${p2}`;
     }
     return `${p1} \\cdot ${p2}`;
   });
+
+  // Dọn dẹp \cdot dính liền vào từ Tiếng Việt (e.g., \cdot T ính -> . Tính)
+  str = str.replace(/\\cdot\s*([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '. $1');
 
   // 4. Tự động bọc $$...$$ cho các môi trường LaTeX nhiều dòng
   str = str.replace(
@@ -776,6 +783,10 @@ export function autoWrapUnwrappedLatex(text: string): string {
   // Làm sạch các vỡ vụn dán ghép $: ví dụ "$x$ $ \vdots $ $12$" -> "$x \vdots 12$"
   result = result.replace(/\$\s*\$/g, '');
   result = result.replace(/\$\s+\$/g, ' ');
+
+  // Sửa khoảng cách chữ Tiếng Việt bị dán câu/dán từ
+  result = result.replace(/\.([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '. $1');
+  result = result.replace(/\)([a-zàáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđA-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, ') $1');
 
   return result;
 }
