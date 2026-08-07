@@ -10,7 +10,7 @@ export interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   loginWithRedirect?: () => Promise<void>;
   logout: () => Promise<void>;
-  changePassword: (newPassword: string) => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   isAdmin: boolean;
   isUser: boolean;
   refetchUser: () => Promise<void>;
@@ -99,9 +99,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const changePassword = async (newPassword: string) => {
+  const changePassword = async (oldPassword: string, newPassword: string) => {
     if (!user || !user.id) throw new Error('Chưa đăng nhập tài khoản.');
-    await userService.changePassword(user.id, newPassword);
+    await userService.changePassword(user.id, oldPassword, newPassword);
     setUser({ ...user, password: newPassword });
   };
 
