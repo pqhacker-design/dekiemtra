@@ -42,12 +42,15 @@ export const MathText: React.FC<MathTextProps> = ({ content, text, className = '
         }
         el.appendChild(span);
       } else if (part.startsWith('$') && part.endsWith('$')) {
-        // Inline Math
+        // Inline Math (Tự động chuyển sang displayMode nếu chứa môi trường nhiều dòng như hệ phương trình cases)
         const mathStr = part.slice(1, -1);
+        const isMultiLineEnv = /\\begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/.test(mathStr);
         const span = document.createElement('span');
-        span.className = 'inline-block px-0.5 align-middle';
+        span.className = isMultiLineEnv
+          ? 'inline-block my-1 align-middle px-1 overflow-x-auto font-sans text-left'
+          : 'inline-block px-0.5 align-middle';
         try {
-          katex.render(mathStr, span, { displayMode: false, throwOnError: false });
+          katex.render(mathStr, span, { displayMode: isMultiLineEnv ? true : false, throwOnError: false });
         } catch (e) {
           span.textContent = part;
         }
